@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'create_workout_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -11,121 +11,106 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const NutritionPage(),
-    const ProgrammePage(),
-    const AccueilPage(),
-    const ProfilPage(),
-    const CommunautePage()
+  final List<Widget> _tabs = [
+    
+    const _TrainingTab(),    // Onglet 1: Entraînement
+    const _NutritionTab(),   // Onglet 2: Nutrition
+    const _CommunityTab(),   // Onglet 3: Communauté
+    const _ProfileTab(),     // Onglet 4: Profil
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Accueil')),
-      body: _pages[_currentIndex],
+      appBar: AppBar(
+        title: const Text('BasedFit'),
+        backgroundColor: Theme.of(context).primaryColor,
+      ),
+      body: _tabs[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
+        type: BottomNavigationBarType.fixed,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home, color: Colors.blue), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.food_bank, color: Colors.blue), label: 'Nutrition'),
-          BottomNavigationBarItem(icon: Icon(Icons.fitness_center, color: Colors.blue), label: 'Musculation'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings, color: Colors.blue), label: 'Profil'),
-          BottomNavigationBarItem(icon: Icon(Icons.forum, color: Colors.blue), label: 'Communauté')
+          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Training'),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Nutrition'),
+          BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Communauté'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
     );
   }
 }
 
-class AccueilPage extends StatelessWidget {
-  const AccueilPage({super.key});
+// Onglet Entraînement (avec bouton création EF-ENT-PROG-1)
+class _TrainingTab extends StatelessWidget {
+  const _TrainingTab();
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.star, size: 100, color: Colors.blue),
-          SizedBox(height: 20),
-          Text('Bienvenue sur l\'accueil !', style: TextStyle(fontSize: 24)),
-          SizedBox(height: 10),
-          Text('Utilisez les onglets en bas pour naviguer.'),
-        ],
-      ),
+    return Column(
+      children: [
+        const SizedBox(height: 50),
+        const Text(
+          'Entraînement',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 30),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              const Card(
+                child: ListTile(
+                  leading: Icon(Icons.play_arrow, size: 40),
+                  title: Text('Sèance du jour'),
+                  subtitle: Text('Haut du corps - 45min'),
+                  trailing: Icon(Icons.arrow_forward_ios),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  onPressed: null, // TODO: Nav sèance
+                  icon: const Icon(Icons.play_circle_outline),
+                  label: const Text('Commencer séance'),
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 60,
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CreateWorkoutScreen()),
+                  ),
+                  icon: const Icon(Icons.add_circle_outline),
+                  label: const Text('Créer un entraînement'), // 👈 TON BOUTON !
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
 
-class NutritionPage extends StatelessWidget {
-  const NutritionPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.star, size: 100, color: Colors.blue),
-          SizedBox(height: 20),
-          Text('Bienvenue sur le truc de bouffe la !', style: TextStyle(fontSize: 24)),
-          SizedBox(height: 10),
-          Text('Utilisez les onglets en bas pour naviguer.'),
-        ],
-      ),
-    );
-  }
+// Placeholders autres onglets (specs manuelles)
+class _NutritionTab extends StatelessWidget {
+  const _NutritionTab();
+  @override Widget build(BuildContext context) => const Center(child: Text('Nutrition\nJournal + Scanner', textAlign: TextAlign.center));
 }
 
-class ProgrammePage extends StatelessWidget {
-  const ProgrammePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.star, size: 100, color: Colors.blue),
-          SizedBox(height: 20),
-          Text('Bienvenue sur creation programme', style: TextStyle(fontSize: 24)),
-          SizedBox(height: 10),
-          Text('Utilisez les onglets en bas pour naviguer.'),
-        ],
-      ),
-    );
-  }
+class _CommunityTab extends StatelessWidget {
+  const _CommunityTab();
+  @override Widget build(BuildContext context) => const Center(child: Text('Communauté\nForums + Messages', textAlign: TextAlign.center));
 }
 
-class CommunautePage extends StatelessWidget {
-  const CommunautePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.star, size: 100, color: Colors.blue),
-          SizedBox(height: 20),
-          Text('Bienvenue sur creation programme', style: TextStyle(fontSize: 24)),
-          SizedBox(height: 10),
-          Text('Utilisez les onglets en bas pour naviguer.'),
-        ],
-      ),
-    );
-  }
-}
-
-
-class ProfilPage extends StatelessWidget {
-  const ProfilPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-    );
-  }
+class _ProfileTab extends StatelessWidget {
+  const _ProfileTab();
+  @override Widget build(BuildContext context) => const Center(child: Text('Profil\nBadges + Stats', textAlign: TextAlign.center));
 }
