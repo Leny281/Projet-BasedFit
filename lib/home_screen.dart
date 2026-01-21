@@ -12,11 +12,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _tabs = [
-    
-    const _TrainingTab(),    // Onglet 1: Entraînement
-    const _NutritionTab(),   // Onglet 2: Nutrition
-    const _CommunityTab(),   // Onglet 3: Communauté
-    const _ProfileTab(),     // Onglet 4: Profil
+    const _MenuTab(),
+    const _TrainingTab(),
+    const _NutritionTab(),
+    const _CommunityTab(),
+    const _ProfileTab()  
   ];
 
   @override
@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: (index) => setState(() => _currentIndex = index),
         type: BottomNavigationBarType.fixed,
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Menu'),
           BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: 'Training'),
           BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Nutrition'),
           BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Communauté'),
@@ -102,6 +103,11 @@ class _TrainingTab extends StatelessWidget {
 // Placeholders autres onglets (specs manuelles)
 class _NutritionTab extends StatelessWidget {
   const _NutritionTab();
+  @override Widget build(BuildContext context) => const Center(child: Text('Nutrition\nJournal + Scanner', textAlign: TextAlign.center));
+}
+
+class _MenuTab extends StatelessWidget {
+  const _MenuTab();
   @override Widget build(BuildContext context) => const Center(child: Text('Nutrition\nJournal + Scanner', textAlign: TextAlign.center));
 }
 
