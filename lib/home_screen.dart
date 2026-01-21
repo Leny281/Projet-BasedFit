@@ -12,10 +12,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = [
-    const AccueilPage(),
     const NutritionPage(),
     const ProgrammePage(),
-    const ParametresPage(),
+    const AccueilPage(),
+    const ProfilPage(),
+    const CommunautePage()
   ];
 
   @override
@@ -30,7 +31,8 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.home, color: Colors.blue), label: 'Accueil'),
           BottomNavigationBarItem(icon: Icon(Icons.food_bank, color: Colors.blue), label: 'Nutrition'),
           BottomNavigationBarItem(icon: Icon(Icons.fitness_center, color: Colors.blue), label: 'Musculation'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings, color: Colors.blue), label: 'Paramètres'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings, color: Colors.blue), label: 'Profil'),
+          BottomNavigationBarItem(icon: Icon(Icons.forum, color: Colors.blue), label: 'Communauté')
         ],
       ),
     );
@@ -97,8 +99,29 @@ class ProgrammePage extends StatelessWidget {
   }
 }
 
-class ParametresPage extends StatelessWidget {
-  const ParametresPage({super.key});
+class CommunautePage extends StatelessWidget {
+  const CommunautePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.star, size: 100, color: Colors.blue),
+          SizedBox(height: 20),
+          Text('Bienvenue sur creation programme', style: TextStyle(fontSize: 24)),
+          SizedBox(height: 10),
+          Text('Utilisez les onglets en bas pour naviguer.'),
+        ],
+      ),
+    );
+  }
+}
+
+
+class ProfilPage extends StatelessWidget {
+  const ProfilPage({super.key});
 
   @override
   Widget build(BuildContext context) {
