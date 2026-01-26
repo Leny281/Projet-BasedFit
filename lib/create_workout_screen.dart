@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'models.dart';
 import 'data/workout_repository.dart';
 import 'data/workout_database.dart';
+import 'data/exercise_catalog_service.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
   final WorkoutProgram? existingProgram;
@@ -12,8 +13,10 @@ class CreateWorkoutScreen extends StatefulWidget {
     super.key,
     this.existingProgram,
     this.programId,
-  }) : assert(existingProgram == null || programId == null,
-            'Pass either existingProgram OR programId, not both.');
+  }) : assert(
+          existingProgram == null || programId == null,
+          'Pass either existingProgram OR programId, not both.',
+        );
 
   @override
   State<CreateWorkoutScreen> createState() => _CreateWorkoutScreenState();
@@ -21,22 +24,12 @@ class CreateWorkoutScreen extends StatefulWidget {
 
 class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   final WorkoutRepository _repo = WorkoutRepository();
-
-  final List<Exercise> _allExercises = List.generate(
-    500,
-    (i) => Exercise(
-      id: i.toString(),
-      name: 'Exercice ${i + 1}',
-      image: '🏋️',
-      muscleGroup: ['Jambes', 'Dos', 'Pecs'][i % 3],
-      equipment: ['Barre', 'Machine', 'Libre'][i % 3],
-      isFavorite: i % 10 == 0,
-    ),
-  );
+  final ExerciseCatalogService _catalog = ExerciseCatalogService();
 
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _programNameController = TextEditingController();
 
+  List<Exercise> _allExercises = [];
   List<Exercise> _filteredExercises = [];
   int _matchingExercisesCount = 0;
 
@@ -47,10 +40,16 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   bool _favoritesOnly = false;
 
   bool _initialLoading = true;
+  bool _catalogLoading = true;
+  String? _catalogError;
+
   bool _saving = false;
 
   int _page = 0;
   final int _pageSize = 20;
+
+  List<String> _muscleOptions = [];
+  List<String> _equipmentOptions = [];
 
   @override
   void initState() {
@@ -59,53 +58,100 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   }
 
   Future<void> _bootstrap() async {
-    // 0) IMPORTANT: force l'init DB (et donne une erreur claire si pas init côté desktop)
+    // 0) Init DB
     try {
       await WorkoutDatabase.instance.database;
     } catch (e) {
       if (!mounted) return;
-      setState(() => _initialLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Erreur BDD: $e\n\n'
-            'Si tu es sur Windows/Linux/Mac: initialise sqflite_common_ffi dans main.dart.',
-          ),
-          duration: const Duration(seconds: 8),
-        ),
-      );
-      // On laisse quand même l’écran s’afficher (sans crash), mais la sauvegarde ne marchera pas.
-      _applyFilters();
+      setState(() {
+        _initialLoading = false;
+        _catalogLoading = false;
+        _catalogError = 'Erreur BDD: $e';
+      });
       return;
     }
 
-    // 1) Pré-remplir si édition directe
+    // 1) Charger le catalogue d'exercices (API) + fallback local si besoin
+    await _loadExerciseCatalog();
+
+    // 2) Pré-remplir si édition directe
     if (widget.existingProgram != null) {
       _programNameController.text = widget.existingProgram!.name;
       _selectedExercises = List.from(widget.existingProgram!.exercises);
+      if (!mounted) return;
       setState(() => _initialLoading = false);
       _applyFilters();
       return;
     }
 
-    // 2) Charger depuis la DB si programId fourni
+    // 3) Charger depuis la DB si programId fourni
     if (widget.programId != null) {
       await _loadProgramFromDb(widget.programId!);
       return;
     }
 
-    // 3) Nouveau programme
+    // 4) Nouveau programme
+    if (!mounted) return;
     setState(() => _initialLoading = false);
     _applyFilters();
+  }
+
+  Future<void> _loadExerciseCatalog() async {
+    try {
+      final exercises = await _catalog.fetchExercises(limit: 120);
+
+      // Options dynamiques (menus filtres)
+      final muscles = <String>{};
+      final equipments = <String>{};
+      for (final e in exercises) {
+        if (e.muscleGroup.trim().isNotEmpty) muscles.add(e.muscleGroup.trim());
+        if (e.equipment.trim().isNotEmpty) equipments.add(e.equipment.trim());
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _allExercises = exercises;
+        _muscleOptions = muscles.toList()..sort();
+        _equipmentOptions = equipments.toList()..sort();
+        _catalogLoading = false;
+        _catalogError = null;
+      });
+
+      _applyFilters();
+    } catch (e) {
+      // Fallback local si l’API est indisponible
+      final exercises = ExerciseCatalogService.fallbackExercises();
+
+      final muscles = <String>{};
+      final equipments = <String>{};
+      for (final exo in exercises) {
+        if (exo.muscleGroup.trim().isNotEmpty) muscles.add(exo.muscleGroup.trim());
+        if (exo.equipment.trim().isNotEmpty) equipments.add(exo.equipment.trim());
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _allExercises = exercises;
+        _muscleOptions = muscles.toList()..sort();
+        _equipmentOptions = equipments.toList()..sort();
+        _catalogLoading = false;
+        _catalogError = 'Catalogue en mode hors-ligne (API indisponible).';
+      });
+
+      _applyFilters();
+    }
   }
 
   Future<void> _loadProgramFromDb(int id) async {
     try {
       final program = await _repo.getProgram(id);
+
       if (!mounted) return;
 
       if (program == null) {
-        setState(() => _initialLoading = false);
+        setState(() {
+          _initialLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Programme introuvable')),
         );
@@ -118,6 +164,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         _selectedExercises = List.from(program.exercises);
         _initialLoading = false;
       });
+
       _applyFilters();
     } catch (e) {
       if (!mounted) return;
@@ -182,6 +229,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       );
       return;
     }
+
     setState(() {
       _selectedExercises.add(SelectedExercise(exercise));
     });
@@ -200,7 +248,9 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
           ),
           TextButton(
             onPressed: () {
-              setState(() => _selectedExercises.removeWhere((se) => se.exercise.id == id));
+              setState(() {
+                _selectedExercises.removeWhere((se) => se.exercise.id == id);
+              });
               Navigator.pop(context);
             },
             child: const Text('Supprimer'),
@@ -220,10 +270,11 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
   Future<void> _saveProgram() async {
     if (_selectedExercises.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pas d\'exercice sélectionné')),
+        const SnackBar(content: Text("Pas d'exercice sélectionné")),
       );
       return;
     }
+
     if (_programNameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Nom du programme requis')),
@@ -244,22 +295,12 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
       final id = await _repo.saveProgram(program);
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Programme "${program.name}" sauvegardé (id: $id) ! Durée: ${program.duration.toStringAsFixed(0)} min',
-          ),
-        ),
-      );
 
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Programme "${program.name}" sauvegardé (id: $id)')),
       );
 
-      // IMPORTANT: retourner à l’onglet Entraînement
       Navigator.pop(context, id);
-      
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -268,8 +309,49 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
 
-    
+  Widget _exerciseImage(Exercise exercise) {
+    final value = exercise.image.trim();
+
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          value,
+          height: 95,
+          width: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            height: 95,
+            alignment: Alignment.center,
+            color: Colors.grey.shade200,
+            child: const Icon(Icons.broken_image),
+          ),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              height: 95,
+              alignment: Alignment.center,
+              color: Colors.grey.shade100,
+              child: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    // Fallback si pas d’URL: icône
+    return Container(
+      height: 95,
+      alignment: Alignment.center,
+      color: Colors.grey.shade100,
+      child: const Icon(Icons.fitness_center, size: 40),
+    );
   }
 
   @override
@@ -279,7 +361,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
     if (_initialLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(isEditing ? 'Ouverture du programme...' : 'Création d\'entraînement'),
+          title: Text(isEditing ? 'Ouverture du programme...' : "Création d'entraînement"),
           backgroundColor: Theme.of(context).primaryColor,
         ),
         body: const Center(child: CircularProgressIndicator()),
@@ -288,8 +370,24 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Modifier le programme' : 'Création d\'entraînement'),
+        title: Text(isEditing ? 'Modifier le programme' : "Création d'entraînement"),
         backgroundColor: Theme.of(context).primaryColor,
+        actions: [
+          IconButton(
+            tooltip: 'Recharger le catalogue',
+            onPressed: _catalogLoading
+                ? null
+                : () async {
+                    setState(() {
+                      _catalogLoading = true;
+                      _catalogError = null;
+                      _page = 0;
+                    });
+                    await _loadExerciseCatalog();
+                  },
+            icon: const Icon(Icons.cloud_download),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -304,6 +402,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ),
 
+          // Liste sélectionnée
           Expanded(
             flex: 2,
             child: Column(
@@ -311,7 +410,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Ma liste d\'exercices (${_selectedExercises.length})',
+                    "Ma liste d'exercices (${_selectedExercises.length})",
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -343,6 +442,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ),
 
+          // Recherche + filtres
           Container(
             padding: const EdgeInsets.all(16),
             color: Colors.grey[100],
@@ -371,7 +471,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.filter_list),
-                  onPressed: _showFilters,
+                  onPressed: _catalogLoading ? null : _showFilters,
                 ),
                 IconButton(
                   icon: const Icon(Icons.refresh),
@@ -381,15 +481,34 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ),
 
+          // Bibliothèque d'exercices
           Expanded(
             flex: 3,
             child: Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Bibliothèque d\'exercices',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  child: Column(
+                    children: [
+                      Text(
+                        "Bibliothèque d'exercices",
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      if (_catalogLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 6),
+                          child: Text('Chargement du catalogue...'),
+                        )
+                      else if (_catalogError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            _catalogError!,
+                            style: TextStyle(color: Colors.orange.shade800),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 Expanded(
@@ -397,13 +516,12 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                     padding: const EdgeInsets.all(8),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      childAspectRatio: 0.8,
+                      childAspectRatio: 0.78,
                     ),
-                    itemCount: _filteredExercises.length +
-                        (_filteredExercises.length < _matchingExercisesCount ? 1 : 0),
+                    itemCount:
+                        _filteredExercises.length + (_filteredExercises.length < _matchingExercisesCount ? 1 : 0),
                     itemBuilder: (context, index) {
-                      final isLoadMoreTile =
-                          index == _filteredExercises.length &&
+                      final isLoadMoreTile = index == _filteredExercises.length &&
                           _filteredExercises.length < _matchingExercisesCount;
 
                       if (isLoadMoreTile) {
@@ -422,30 +540,35 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
                         margin: const EdgeInsets.all(4),
                         elevation: isDuplicate ? 8 : 2,
                         child: InkWell(
-                          onTap: () {},
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(exercise.image, style: const TextStyle(fontSize: 40)),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8),
-                                child: Text(
+                          onTap: isDuplicate ? null : () => _addExercise(exercise),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _exerciseImage(exercise),
+                                const SizedBox(height: 10),
+                                Text(
                                   exercise.name,
                                   style: Theme.of(context).textTheme.titleSmall,
                                   textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${exercise.muscleGroup} - ${exercise.equipment}',
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 10),
-                              ElevatedButton(
-                                onPressed: isDuplicate ? null : () => _addExercise(exercise),
-                                child: Text(isDuplicate ? 'Ajouté' : 'Ajouter'),
-                              ),
-                            ],
+                                const SizedBox(height: 6),
+                                Text(
+                                  '${exercise.muscleGroup}${exercise.equipment.isEmpty ? '' : ' • ${exercise.equipment}'}',
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const Spacer(),
+                                ElevatedButton(
+                                  onPressed: isDuplicate ? null : () => _addExercise(exercise),
+                                  child: Text(isDuplicate ? 'Ajouté' : 'Ajouter'),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       );
@@ -456,6 +579,7 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
             ),
           ),
 
+          // Sauvegarde
           Container(
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -496,6 +620,8 @@ class _CreateWorkoutScreenState extends State<CreateWorkoutScreen> {
         muscleFilter: _muscleFilter,
         equipmentFilter: _equipmentFilter,
         favoritesOnly: _favoritesOnly,
+        muscleOptions: _muscleOptions,
+        equipmentOptions: _equipmentOptions,
         onApply: (muscle, equipment, favorites) {
           setState(() {
             _muscleFilter = muscle;
@@ -514,6 +640,10 @@ class FilterModal extends StatefulWidget {
   final String muscleFilter;
   final String equipmentFilter;
   final bool favoritesOnly;
+
+  final List<String> muscleOptions;
+  final List<String> equipmentOptions;
+
   final Function(String, String, bool) onApply;
 
   const FilterModal({
@@ -521,6 +651,8 @@ class FilterModal extends StatefulWidget {
     required this.muscleFilter,
     required this.equipmentFilter,
     required this.favoritesOnly,
+    required this.muscleOptions,
+    required this.equipmentOptions,
     required this.onApply,
   });
 
@@ -553,28 +685,33 @@ class _FilterModalState extends State<FilterModal> {
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
+
           DropdownButtonFormField<String>(
             value: _muscle.isEmpty ? null : _muscle,
             hint: const Text('Groupe musculaire'),
-            items: ['Jambes', 'Dos', 'Pecs']
+            items: widget.muscleOptions
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
             onChanged: (v) => setState(() => _muscle = v ?? ''),
           ),
+
           const SizedBox(height: 12),
+
           DropdownButtonFormField<String>(
             value: _equipment.isEmpty ? null : _equipment,
             hint: const Text('Équipement'),
-            items: ['Barre', 'Machine', 'Libre']
+            items: widget.equipmentOptions
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                 .toList(),
             onChanged: (v) => setState(() => _equipment = v ?? ''),
           ),
+
           CheckboxListTile(
             title: const Text('Favoris seulement'),
             value: _favorites,
             onChanged: (v) => setState(() => _favorites = v ?? false),
           ),
+
           Row(
             children: [
               Expanded(
