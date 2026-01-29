@@ -687,7 +687,7 @@ class _FilterModalState extends State<FilterModal> {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
-            value: _muscle.isEmpty ? null : _muscle,
+            initialValue: _muscle.isEmpty ? null : _muscle,
             hint: const Text('Groupe musculaire'),
             items: widget.muscleOptions
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -698,7 +698,7 @@ class _FilterModalState extends State<FilterModal> {
           const SizedBox(height: 12),
 
           DropdownButtonFormField<String>(
-            value: _equipment.isEmpty ? null : _equipment,
+            initialValue: _equipment.isEmpty ? null : _equipment,
             hint: const Text('Équipement'),
             items: widget.equipmentOptions
                 .map((e) => DropdownMenuItem(value: e, child: Text(e)))

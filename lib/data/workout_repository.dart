@@ -1,4 +1,3 @@
-import 'package:sqflite/sqflite.dart';
 
 import 'workout_database.dart';
 import '../models.dart'; // mets ici tes classes Exercise, SelectedExercise, WorkoutProgram
