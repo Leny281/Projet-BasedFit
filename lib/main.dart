@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 import 'home_screen.dart';
-import 'create_workout_screen.dart'; // Nouveau !
+import 'programme_creation/create_workout_screen.dart'; // Nouveau !
 import 'dart:io';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 

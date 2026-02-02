@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../models.dart';
+import '../programme_creation/models.dart';
 
 class ExerciseCatalogService {
   // free-exercise-db hébergé sur GitHub (800+ exercices avec images garanties)
