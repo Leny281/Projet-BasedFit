@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'models.dart';
-import '../data/workout_repository.dart';
+import 'data/workout_repository.dart';
 import 'create_workout_screen.dart';
 
 /// Écran de visualisation d'un programme (lecture seule)

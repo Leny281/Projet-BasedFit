@@ -1,6 +1,6 @@
 
 import 'workout_database.dart';
-import '../programme_creation/models.dart'; // mets ici tes classes Exercise, SelectedExercise, WorkoutProgram
+import '../models.dart'; // mets ici tes classes Exercise, SelectedExercise, WorkoutProgram
 
 class WorkoutRepository {
   final WorkoutDatabase _dbProvider = WorkoutDatabase.instance;

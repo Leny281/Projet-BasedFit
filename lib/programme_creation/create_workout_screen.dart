@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'models.dart';
-import '../data/workout_repository.dart';
-import '../data/workout_database.dart';
-import '../data/exercise_catalog_service.dart';
+import 'data/workout_repository.dart';
+import 'data/workout_database.dart';
+import 'data/exercise_catalog_service.dart';
 import 'exercise_params_editor.dart';
 
 class CreateWorkoutScreen extends StatefulWidget {
