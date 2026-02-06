@@ -4,6 +4,7 @@ import 'programme_creation/create_workout_screen.dart';
 import 'programme_creation/view_workout_screen.dart';
 import 'programme_creation/data/workout_repository.dart';
 import 'programme_creation/models.dart';
+import 'profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
     TrainingTab(),
     _NutritionTab(),
     _CommunityTab(),
-    _ProfileTab(),
+    ProfileScreen(),
   ];
 
   @override
