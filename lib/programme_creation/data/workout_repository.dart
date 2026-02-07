@@ -1,12 +1,19 @@
 
-import 'workout_database.dart';
+import '../../data/app_database.dart';
+import '../../services/auth_service.dart';
 import '../models.dart'; // mets ici tes classes Exercise, SelectedExercise, WorkoutProgram
 
 class WorkoutRepository {
-  final WorkoutDatabase _dbProvider = WorkoutDatabase.instance;
+  final AppDatabase _dbProvider = AppDatabase.instance;
+  final AuthService _authService = AuthService();
 
   Future<int> saveProgram(WorkoutProgram program) async {
     final db = await _dbProvider.database;
+    final currentUser = _authService.currentUser;
+    
+    if (currentUser == null) {
+      throw Exception('Utilisateur non connecté');
+    }
 
     // 1) Insérer ou mettre à jour le programme
     int programId;
@@ -14,8 +21,10 @@ class WorkoutRepository {
       programId = await db.insert(
         'programs',
         {
+          'user_id': currentUser.id,
           'name': program.name,
           'duration': program.duration,
+          'created_at': DateTime.now().toIso8601String(),
         },
       );
     } else {
@@ -26,8 +35,8 @@ class WorkoutRepository {
           'name': program.name,
           'duration': program.duration,
         },
-        where: 'id = ?',
-        whereArgs: [programId],
+        where: 'id = ? AND user_id = ?',
+        whereArgs: [programId, currentUser.id],
       );
       // On supprime les anciens exercices pour les réinsérer proprement
       await db.delete(
@@ -60,8 +69,18 @@ class WorkoutRepository {
 
   Future<List<WorkoutProgram>> getAllPrograms() async {
     final db = await _dbProvider.database;
+    final currentUser = _authService.currentUser;
+    
+    if (currentUser == null) {
+      return [];
+    }
 
-    final programsRows = await db.query('programs', orderBy: 'id DESC');
+    final programsRows = await db.query(
+      'programs',
+      where: 'user_id = ?',
+      whereArgs: [currentUser.id],
+      orderBy: 'id DESC',
+    );
 
     final List<WorkoutProgram> result = [];
     for (final p in programsRows) {
@@ -107,11 +126,14 @@ class WorkoutRepository {
 
   Future<WorkoutProgram?> getProgram(int id) async {
     final db = await _dbProvider.database;
+    final currentUser = _authService.currentUser;
+    
+    if (currentUser == null) return null;
 
     final progrRows = await db.query(
       'programs',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, currentUser.id],
     );
 
     if (progrRows.isEmpty) return null;
@@ -152,10 +174,14 @@ class WorkoutRepository {
 
   Future<void> deleteProgram(int id) async {
     final db = await _dbProvider.database;
+    final currentUser = _authService.currentUser;
+    
+    if (currentUser == null) return;
+    
     await db.delete(
       'programs',
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, currentUser.id],
     );
     // Les exercises liés sont supprimés via ON DELETE CASCADE
   }

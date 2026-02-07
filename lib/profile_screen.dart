@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'services/auth_service.dart';
+import 'models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -8,18 +10,52 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Données utilisateur (à remplacer par des données réelles plus tard)
-  String _userName = "Jean Dupont";
-  int _age = 25;
-  double _weight = 75.0;
-  double _height = 180.0;
-  String _goal = "Prise de masse";
-  int _workoutsCompleted = 42;
-  int _totalDays = 60;
-  int _currentStreak = 5;
+  final _authService = AuthService();
+  User? _user;
+
+  // Statistiques
+  int _workoutsCompleted = 0;
+  int _totalDays = 0;
+  int _currentStreak = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    _user = _authService.currentUser;
+    if (_user != null) {
+      final stats = await _authService.getUserStats();
+      setState(() {
+        _workoutsCompleted = stats['workouts_completed'] ?? 0;
+        _totalDays = stats['total_days'] ?? 0;
+        _currentStreak = stats['current_streak'] ?? 0;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (_user == null) {
+      return const Center(
+        child: Text('Erreur: Utilisateur non connecté'),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -63,7 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   radius: 50,
                   backgroundColor: Colors.blue[100],
                   child: Text(
-                    _userName.substring(0, 1).toUpperCase(),
+                    _user!.firstName.substring(0, 1).toUpperCase(),
                     style: TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
@@ -97,7 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _userName,
+                    _user!.fullName,
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -105,7 +141,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '$_age ans • $_goal',
+                    '${_user!.age} ans • ${_user!.goal}',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[600],
@@ -203,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildPersonalInfo() {
-    final bmi = _weight / ((_height / 100) * (_height / 100));
+    final bmi = _user!.weight / ((_user!.height / 100) * (_user!.height / 100));
     
     return Card(
       elevation: 2,
@@ -231,15 +267,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const Divider(),
             const SizedBox(height: 8),
-            _buildInfoRow(Icons.scale, 'Poids', '${_weight.toStringAsFixed(1)} kg'),
-            _buildInfoRow(Icons.height, 'Taille', '${_height.toStringAsFixed(0)} cm'),
+            _buildInfoRow(Icons.scale, 'Poids', '${_user!.weight.toStringAsFixed(1)} kg'),
+            _buildInfoRow(Icons.height, 'Taille', '${_user!.height.toStringAsFixed(0)} cm'),
             _buildInfoRow(
               Icons.analytics,
               'IMC',
               '${bmi.toStringAsFixed(1)}',
               subtitle: _getBMICategory(bmi),
             ),
-            _buildInfoRow(Icons.flag, 'Objectif', _goal),
+            _buildInfoRow(Icons.flag, 'Objectif', _user!.goal),
           ],
         ),
       ),
@@ -465,114 +501,127 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editProfile() {
+    // Note: Nom et prénom ne peuvent pas être modifiés
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Modifier le profil'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: const InputDecoration(labelText: 'Nom'),
-              controller: TextEditingController(text: _userName),
-              onChanged: (value) => _userName = value,
-            ),
-            TextField(
-              decoration: const InputDecoration(labelText: 'Âge'),
-              keyboardType: TextInputType.number,
-              controller: TextEditingController(text: _age.toString()),
-              onChanged: (value) => _age = int.tryParse(value) ?? _age,
-            ),
-          ],
+        title: const Text('Informations du profil'),
+        content: const Text(
+          'Le nom, prénom et l\'âge ne peuvent pas être modifiés.\n\n'
+          'Pour modifier la taille, le poids et l\'objectif, utilisez '
+          'la section "Informations personnelles".',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {});
-              Navigator.pop(context);
-            },
-            child: const Text('Enregistrer'),
+            child: const Text('OK'),
           ),
         ],
       ),
     );
   }
 
-  void _editPersonalInfo() {
-    showDialog(
+  void _editPersonalInfo() async {
+    final weightController = TextEditingController(text: _user!.weight.toString());
+    final heightController = TextEditingController(text: _user!.height.toString());
+    String selectedGoal = _user!.goal;
+
+    final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Informations personnelles'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Poids (kg)',
-                  suffixText: 'kg',
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: weightController,
+                  decoration: const InputDecoration(
+                    labelText: 'Poids (kg)',
+                    suffixText: 'kg',
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
-                keyboardType: TextInputType.number,
-                controller: TextEditingController(text: _weight.toString()),
-                onChanged: (value) =>
-                    _weight = double.tryParse(value) ?? _weight,
-              ),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Taille (cm)',
-                  suffixText: 'cm',
+                TextField(
+                  controller: heightController,
+                  decoration: const InputDecoration(
+                    labelText: 'Taille (cm)',
+                    suffixText: 'cm',
+                  ),
+                  keyboardType: TextInputType.number,
                 ),
-                keyboardType: TextInputType.number,
-                controller: TextEditingController(text: _height.toString()),
-                onChanged: (value) =>
-                    _height = double.tryParse(value) ?? _height,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Objectif'),
-                value: _goal,
-                items: const [
-                  DropdownMenuItem(
-                    value: 'Prise de masse',
-                    child: Text('Prise de masse'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Perte de poids',
-                    child: Text('Perte de poids'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Maintien',
-                    child: Text('Maintien'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Remise en forme',
-                    child: Text('Remise en forme'),
-                  ),
-                ],
-                onChanged: (value) => _goal = value ?? _goal,
-              ),
-            ],
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'Objectif'),
+                  value: selectedGoal,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Prise de masse',
+                      child: Text('Prise de masse'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Perte de poids',
+                      child: Text('Perte de poids'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Maintien',
+                      child: Text('Maintien'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Remise en forme',
+                      child: Text('Remise en forme'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    setDialogState(() {
+                      selectedGoal = value ?? selectedGoal;
+                    });
+                  },
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              setState(() {});
-              Navigator.pop(context);
-            },
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Enregistrer'),
           ),
         ],
       ),
     );
+
+    if (result == true) {
+      final newWeight = double.tryParse(weightController.text);
+      final newHeight = double.tryParse(heightController.text);
+
+      if (newWeight != null && newHeight != null) {
+        final updatedUser = _user!.copyWith(
+          weight: newWeight,
+          height: newHeight,
+          goal: selectedGoal,
+        );
+
+        await _authService.updateUser(updatedUser);
+        setState(() {
+          _user = updatedUser;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Informations mises à jour'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    }
   }
 
   void _showAboutDialog() {
@@ -616,12 +665,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Annuler'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Implémenter la logique de déconnexion
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Déconnexion...')),
-              );
+            onPressed: () async {
+              await _authService.logout();
+              if (mounted) {
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/auth',
+                  (route) => false,
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Déconnexion'),

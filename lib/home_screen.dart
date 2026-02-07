@@ -449,10 +449,3 @@ class _CommunityTab extends StatelessWidget {
       child:
           Text('Communauté\nForums + Messages', textAlign: TextAlign.center));
 }
-
-class _ProfileTab extends StatelessWidget {
-  const _ProfileTab();
-  @override
-  Widget build(BuildContext context) => const Center(
-      child: Text('Profil\nBadges + Stats', textAlign: TextAlign.center));
-}
