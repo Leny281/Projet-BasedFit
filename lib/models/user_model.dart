@@ -8,6 +8,7 @@ class User {
   double height; // en cm (modifiable)
   double weight; // en kg (modifiable)
   String goal;
+  final bool isAdmin;
 
   User({
     required this.id,
@@ -19,6 +20,7 @@ class User {
     required this.height,
     required this.weight,
     this.goal = 'Remise en forme',
+    this.isAdmin = false,
   });
 
   // Calcul automatique de l'âge
@@ -47,6 +49,7 @@ class User {
       'height': height,
       'weight': weight,
       'goal': goal,
+      'is_admin': isAdmin ? 1 : 0,
     };
   }
 
@@ -62,6 +65,7 @@ class User {
       height: (map['height'] as num).toDouble(),
       weight: (map['weight'] as num).toDouble(),
       goal: map['goal'] as String? ?? 'Remise en forme',
+      isAdmin: (map['is_admin'] as int? ?? 0) == 1,
     );
   }
 
@@ -76,6 +80,7 @@ class User {
     double? height,
     double? weight,
     String? goal,
+    bool? isAdmin,
   }) {
     return User(
       id: id ?? this.id,
@@ -87,6 +92,7 @@ class User {
       height: height ?? this.height,
       weight: weight ?? this.weight,
       goal: goal ?? this.goal,
+      isAdmin: isAdmin ?? this.isAdmin,
     );
   }
 }

@@ -19,7 +19,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         // Table des programmes d'entraînement
         await db.execute('''
@@ -66,6 +66,7 @@ class AppDatabase {
             height REAL NOT NULL,
             weight REAL NOT NULL,
             goal TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
             created_at TEXT NOT NULL
           );
         ''');
@@ -88,6 +89,32 @@ class AppDatabase {
             total_days INTEGER DEFAULT 0,
             current_streak INTEGER DEFAULT 0,
             last_workout_date TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // Table des forums
+        await db.execute('''
+          CREATE TABLE forums (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            created_by_user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            message_count INTEGER DEFAULT 0,
+            FOREIGN KEY(created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // Table des messages dans les forums
+        await db.execute('''
+          CREATE TABLE forum_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            forum_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(forum_id) REFERENCES forums(id) ON DELETE CASCADE,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
           );
         ''');
@@ -157,6 +184,37 @@ class AppDatabase {
           ''');
 
           await db.insert('current_session', {'id': 1, 'user_id': null});
+        }
+        
+        if (oldVersion < 3) {
+          // Migration de la version 2 à 3 - Ajout du système de forum
+          // Ajouter is_admin aux utilisateurs
+          await db.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;');
+          
+          // Créer les tables de forum
+          await db.execute('''
+            CREATE TABLE forums (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              title TEXT NOT NULL,
+              description TEXT NOT NULL,
+              created_by_user_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              message_count INTEGER DEFAULT 0,
+              FOREIGN KEY(created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+          ''');
+
+          await db.execute('''
+            CREATE TABLE forum_messages (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              forum_id INTEGER NOT NULL,
+              user_id INTEGER NOT NULL,
+              message TEXT NOT NULL,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(forum_id) REFERENCES forums(id) ON DELETE CASCADE,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+          ''');
         }
       },
       onConfigure: (db) async {

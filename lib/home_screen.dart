@@ -5,6 +5,7 @@ import 'programme_creation/view_workout_screen.dart';
 import 'programme_creation/data/workout_repository.dart';
 import 'programme_creation/models.dart';
 import 'profile_screen.dart';
+import 'community/community_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -20,7 +21,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _MenuTab(),
     TrainingTab(),
     _NutritionTab(),
-    _CommunityTab(),
+    CommunityScreen(),
     ProfileScreen(),
   ];
 
@@ -440,12 +441,4 @@ class _MenuTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       const Center(child: Text('Menu', textAlign: TextAlign.center));
-}
-
-class _CommunityTab extends StatelessWidget {
-  const _CommunityTab();
-  @override
-  Widget build(BuildContext context) => const Center(
-      child:
-          Text('Communauté\nForums + Messages', textAlign: TextAlign.center));
 }
