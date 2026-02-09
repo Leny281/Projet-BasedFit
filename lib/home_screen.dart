@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'programme_creation/create_workout_screen.dart';
 import 'programme_creation/view_workout_screen.dart';
@@ -445,6 +446,8 @@ class _NutritionTab extends StatefulWidget {
 class _NutritionTabState extends State<_NutritionTab> {
   double? _maintenance;
   double? _remaining;
+  double? _goalTotal;
+  bool _dailyLoaded = false;
 
   double _maintenanceCalories(User user) {
     final bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age);
@@ -452,11 +455,65 @@ class _NutritionTabState extends State<_NutritionTab> {
     return bmr * activityFactor;
   }
 
+  double _goalCalories(User user) {
+    final maintenance = _maintenanceCalories(user);
+    switch (user.goal) {
+      case 'Perte de poids':
+        return (maintenance - 300).clamp(1200, double.infinity);
+      case 'Prise de masse':
+        return maintenance + 300;
+      default:
+        return maintenance;
+    }
+  }
+
+  String _dayKey(DateTime date) {
+    final y = date.year.toString();
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y$m$d';
+  }
+
+  String _prefKey(String name) => 'nutrition_${name}_${_dayKey(DateTime.now())}';
+
+  Future<void> _loadDaily(User user) async {
+    if (_dailyLoaded) return;
+    final prefs = await SharedPreferences.getInstance();
+
+    final goalKey = _prefKey('goal');
+    final remainingKey = _prefKey('remaining');
+
+    final storedGoal = prefs.getDouble(goalKey);
+    final storedRemaining = prefs.getDouble(remainingKey);
+
+    final maintenance = _maintenanceCalories(user);
+    final goalTotal = _goalCalories(user);
+
+    setState(() {
+      _maintenance = maintenance;
+      _goalTotal = storedGoal ?? goalTotal;
+      _remaining = storedRemaining ?? _goalTotal;
+      _dailyLoaded = true;
+    });
+
+    await prefs.setDouble(goalKey, _goalTotal!);
+    await prefs.setDouble(remainingKey, _remaining!);
+  }
+
+  Future<void> _saveDaily() async {
+    if (_goalTotal == null || _remaining == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_prefKey('goal'), _goalTotal!);
+    await prefs.setDouble(_prefKey('remaining'), _remaining!);
+  }
+
   void _ensureCalories(User user) {
     final maintenance = _maintenanceCalories(user);
-    if (_maintenance == null || _remaining == null) {
+    final goalTotal = _goalCalories(user);
+    if (_maintenance == null || _remaining == null || _goalTotal == null) {
       _maintenance = maintenance;
-      _remaining = maintenance;
+      _goalTotal = goalTotal;
+      _remaining = _remaining ?? goalTotal;
       return;
     }
   }
@@ -501,6 +558,8 @@ class _NutritionTabState extends State<_NutritionTab> {
       _ensureCalories(user);
       _remaining = (_remaining! - added).clamp(0, double.infinity);
     });
+
+    await _saveDaily();
   }
 
   Future<List<_FoodItem>> _searchFoods(String query) async {
@@ -766,6 +825,8 @@ class _NutritionTabState extends State<_NutritionTab> {
       _remaining = (_remaining! - calories).clamp(0, double.infinity);
     });
 
+    await _saveDaily();
+
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -805,6 +866,8 @@ class _NutritionTabState extends State<_NutritionTab> {
         _ensureCalories(user);
         _remaining = (_remaining! - calories).clamp(0, double.infinity);
       });
+
+      await _saveDaily();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -957,6 +1020,11 @@ class _NutritionTabState extends State<_NutritionTab> {
       );
     }
 
+    if (!_dailyLoaded) {
+      _loadDaily(user);
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
       children: [
@@ -976,8 +1044,174 @@ class _NutritionTabState extends State<_NutritionTab> {
 class _MenuTab extends StatelessWidget {
   const _MenuTab();
   @override
-  Widget build(BuildContext context) =>
-      const Center(child: Text('Menu', textAlign: TextAlign.center));
+  Widget build(BuildContext context) => const _MenuCaloriesOverview();
+}
+
+class _MenuCaloriesOverview extends StatefulWidget {
+  const _MenuCaloriesOverview();
+
+  @override
+  State<_MenuCaloriesOverview> createState() => _MenuCaloriesOverviewState();
+}
+
+class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
+  double? _goalTotal;
+  double? _remaining;
+  bool _loading = true;
+
+  double _maintenanceCalories(User user) {
+    final bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age);
+    const activityFactor = 1.2;
+    return bmr * activityFactor;
+  }
+
+  double _goalCalories(User user) {
+    final maintenance = _maintenanceCalories(user);
+    switch (user.goal) {
+      case 'Perte de poids':
+        return (maintenance - 300).clamp(1200, double.infinity);
+      case 'Prise de masse':
+        return maintenance + 300;
+      default:
+        return maintenance;
+    }
+  }
+
+  String _dayKey(DateTime date) {
+    final y = date.year.toString();
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y$m$d';
+  }
+
+  String _prefKey(String name) => 'nutrition_${name}_${_dayKey(DateTime.now())}';
+
+  Future<void> _load(User user) async {
+    final prefs = await SharedPreferences.getInstance();
+    final goalKey = _prefKey('goal');
+    final remainingKey = _prefKey('remaining');
+
+    final storedGoal = prefs.getDouble(goalKey);
+    final storedRemaining = prefs.getDouble(remainingKey);
+
+    final goalTotal = storedGoal ?? _goalCalories(user);
+    final remaining = storedRemaining ?? goalTotal;
+
+    if (!mounted) return;
+    setState(() {
+      _goalTotal = goalTotal;
+      _remaining = remaining;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = AuthService().currentUser;
+    if (user == null) {
+      return const Center(
+        child: Text('Connectez-vous pour voir vos calories.'),
+      );
+    }
+
+    if (_loading) {
+      _load(user);
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final goal = (_goalTotal ?? 0).round();
+    final remaining = (_remaining ?? 0).round();
+    final consumed = (goal - remaining).clamp(0, goal);
+    final progress = goal == 0 ? 0.0 : consumed / goal;
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+      children: [
+        const Center(
+          child: Text(
+            'Menu',
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Card(
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Calories du jour',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final gaugeWidth = constraints.maxWidth;
+                    final fillWidth = (gaugeWidth * progress.clamp(0.0, 1.0));
+
+                    return Column(
+                      children: [
+                        Stack(
+                          children: [
+                            Container(
+                              height: 22,
+                              width: gaugeWidth,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            Container(
+                              height: 22,
+                              width: fillWidth,
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '$remaining kcal restantes',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Objectif: $goal kcal',
+                      style: TextStyle(color: Colors.grey[700]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Consommées: ${goal - remaining} kcal',
+                      style: TextStyle(color: Colors.grey[700]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _FoodItem {
