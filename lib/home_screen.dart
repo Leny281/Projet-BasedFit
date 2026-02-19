@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'programme_creation/create_workout_screen.dart';
 import 'programme_creation/view_workout_screen.dart';
+import 'programme_creation/program_creation_choice_screen.dart';
 import 'programme_creation/data/workout_repository.dart';
 import 'programme_creation/models.dart';
 import 'profile_screen.dart';
@@ -81,11 +81,11 @@ class _TrainingTabState extends State<TrainingTab> {
     setState(() {});
   }
 
-  /// Ouvrir l'écran de création d'un nouveau programme
+  /// Ouvrir l'écran de choix de création (manuelle ou IA)
   Future<void> _openCreate() async {
     final res = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CreateWorkoutScreen()),
+      MaterialPageRoute(builder: (_) => const ProgramCreationChoiceScreen()),
     );
     if (res != null) _reload();
   }
