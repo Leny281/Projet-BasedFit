@@ -1,5 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._internal();
@@ -13,13 +15,19 @@ class AppDatabase {
     return _db!;
   }
 
+  // Utilitaire : hash SHA-256 d'un mot de passe
+  static String hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    return sha256.convert(bytes).toString();
+  }
+
   Future<Database> _initDb() async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, 'basedfit.db');
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         // Table des programmes d'entraînement
         await db.execute('''
@@ -121,11 +129,12 @@ class AppDatabase {
 
         // Initialiser la ligne de session (vide au début)
         await db.insert('current_session', {'id': 1, 'user_id': null});
+
+        // ── Compte gérant par défaut ──────────────────────────────────
+        await _seedManagerAccount(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          // Migration de la version 1 à 2
-          // Ajouter la colonne user_id à programs si elle n'existe pas
           await db.execute('''
             CREATE TABLE programs_new (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,18 +144,13 @@ class AppDatabase {
               created_at TEXT NOT NULL DEFAULT '${DateTime.now().toIso8601String()}'
             );
           ''');
-
-          // Copier les données existantes
           await db.execute('''
             INSERT INTO programs_new (id, name, duration, user_id, created_at)
             SELECT id, name, duration, 1, '${DateTime.now().toIso8601String()}' FROM programs;
           ''');
-
-          // Supprimer l'ancienne table et renommer
           await db.execute('DROP TABLE programs;');
           await db.execute('ALTER TABLE programs_new RENAME TO programs;');
 
-          // Créer les nouvelles tables
           await db.execute('''
             CREATE TABLE users (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -162,7 +166,6 @@ class AppDatabase {
               created_at TEXT NOT NULL
             );
           ''');
-
           await db.execute('''
             CREATE TABLE current_session (
               id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -170,7 +173,6 @@ class AppDatabase {
               FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
             );
           ''');
-
           await db.execute('''
             CREATE TABLE user_stats (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,16 +184,12 @@ class AppDatabase {
               FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
           ''');
-
           await db.insert('current_session', {'id': 1, 'user_id': null});
         }
-        
+
         if (oldVersion < 3) {
-          // Migration de la version 2 à 3 - Ajout du système de forum
-          // Ajouter is_admin aux utilisateurs
-          await db.execute('ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;');
-          
-          // Créer les tables de forum
+          await db.execute(
+              'ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0;');
           await db.execute('''
             CREATE TABLE forums (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,7 +201,6 @@ class AppDatabase {
               FOREIGN KEY(created_by_user_id) REFERENCES users(id) ON DELETE CASCADE
             );
           ''');
-
           await db.execute('''
             CREATE TABLE forum_messages (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,11 +213,50 @@ class AppDatabase {
             );
           ''');
         }
+
+        if (oldVersion < 4) {
+          // Migration v3 → v4 : insertion du compte gérant par défaut
+          // (si la DB existait avant cette version, on l'ajoute ici)
+          await _seedManagerAccount(db);
+        }
       },
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
     );
+  }
+
+  /// Insère le compte gérant par défaut s'il n'existe pas déjà.
+  ///
+  /// Identifiants :
+  ///   Email    → gerant@basedfit.com
+  ///   Mot de passe → Gerant2024!
+  static Future<void> _seedManagerAccount(Database db) async {
+    const managerEmail = 'gerant@basedfit.com';
+    const managerPassword = 'Gerant2024!';
+
+    final existing = await db.query(
+      'users',
+      where: 'email = ?',
+      whereArgs: [managerEmail],
+      limit: 1,
+    );
+
+    if (existing.isEmpty) {
+      await db.insert('users', {
+        'first_name': 'Gérant',
+        'last_name': 'BasedFit',
+        'email': managerEmail,
+        'password': hashPassword(managerPassword),
+        'phone_number': '0000000000',
+        'birth_date': '1990-01-01',
+        'height': 170.0,
+        'weight': 70.0,
+        'goal': 'management',
+        'is_admin': 1,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    }
   }
 
   // Méthode pour réinitialiser la base de données (utile pour le développement)
