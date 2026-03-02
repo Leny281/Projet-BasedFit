@@ -69,93 +69,89 @@ class _AuthScreenState extends State<AuthScreen>
   }
 
   @override
-  Widget build(BuildContext context) {
+Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true,
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
+            colors: [Colors.blue[400]!, Colors.blue[700]!],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Colors.blue[400]!,
-              Colors.blue[700]!,
-            ],
           ),
         ),
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
-              child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Logo et titre
-                      Icon(
-                        Icons.fitness_center,
-                        size: 64,
-                        color: Colors.blue[700],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'BasedFit',
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Onglets Membre / Gérant
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: TabBar(
-                          controller: _tabController,
-                          indicator: BoxDecoration(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
+                child: Card(
+                  elevation: 8,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.fitness_center,
+                            size: 60, color: Colors.blue[700]),
+                        const SizedBox(height: 12),
+                        Text(
+                          'BasedFit',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
                             color: Colors.blue[700],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                         Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          labelColor: Colors.white,
-                          unselectedLabelColor: Colors.grey[600],
-                          dividerColor: Colors.transparent,
-                          tabs: const [
-                            Tab(
-                              icon: Icon(Icons.person),
-                              text: 'Membre',
+                          child: TabBar(
+                            controller: _tabController,
+                            indicator: BoxDecoration(
+                              color: Colors.blue[700],
+                              borderRadius: BorderRadius.circular(12),
+                              
                             ),
-                            Tab(
-                              icon: Icon(Icons.admin_panel_settings),
-                              text: 'Gérant',
-                            ),
-                          ],
+                            labelColor: Colors.white,
+                            unselectedLabelColor: Colors.grey[600],
+                            dividerColor: Colors.transparent,
+                            onTap: (_) => setState(() {}),
+                            tabs: const [
+                              Tab(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text('Membre'),
+                                ),
+                              ),
+                              Tab(
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text('Gérant'),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
+                        const SizedBox(height: 20),
 
-                      // Contenu des onglets
-                      SizedBox(
-                        height: _tabController.index == 0
-                            ? (_isLogin ? 280 : 620)
-                            : (_isManagerRegister ? 520 : 280),
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildMemberTab(),
-                            _buildManagerTab(),
-                          ],
+                        AnimatedSize(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeInOut,
+                          child: _tabController.index == 0
+                              ? _buildMemberTab()
+                              : _buildManagerTab(),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -165,6 +161,7 @@ class _AuthScreenState extends State<AuthScreen>
       ),
     );
   }
+
 
   // ───────────────────────── ONGLET MEMBRE ─────────────────────────
 

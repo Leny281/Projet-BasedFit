@@ -247,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildPersonalInfo() {
     final bmi = _user!.weight / ((_user!.height / 100) * (_user!.height / 100));
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -484,6 +484,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             titleColor: Colors.red,
             onTap: _logout,
           ),
+          const Divider(height: 1),
+          // ── Suppression de compte ─────────────────────────────────
+          _buildSettingTile(
+            icon: Icons.delete_forever,
+            title: 'Supprimer mon compte',
+            subtitle: 'Cette action est irréversible',
+            titleColor: Colors.red[800],
+            onTap: _deleteAccount,
+          ),
         ],
       ),
     );
@@ -519,7 +528,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editProfile() {
-    // Note: Nom et prénom ne peuvent pas être modifiés
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -699,6 +707,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ── Suppression de compte ────────────────────────────────────────────────
+
+  void _deleteAccount() {
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
+            const SizedBox(width: 8),
+            const Text('Supprimer mon compte'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cette action est définitive et irréversible.\n\n'
+              'Toutes vos données (programmes, stats, favoris) seront supprimées.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirmez votre mot de passe',
+                prefixIcon: Icon(Icons.lock_outline),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final password = passwordController.text.trim();
+              if (password.isEmpty) return;
+
+              // Vérifier le mot de passe
+              final db = await AppDatabase.instance.database;
+              final hashed = AppDatabase.hashPassword(password);
+              final result = await db.query(
+                'users',
+                where: 'id = ? AND password = ?',
+                whereArgs: [_user!.id, hashed],
+                limit: 1,
+              );
+
+              if (result.isEmpty) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mot de passe incorrect.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
+
+              // Supprimer l'utilisateur (CASCADE supprime ses favoris, stats, etc.)
+              await db.delete('users', where: 'id = ?', whereArgs: [_user!.id]);
+              await _authService.logout();
+
+              if (mounted) {
+                Navigator.pop(context);
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/auth',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
+            child: const Text('Supprimer définitivement'),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -717,11 +814,19 @@ class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
   List<Map<String, dynamic>> _favorites = [];
   List<Map<String, dynamic>> _allGyms = [];
   bool _loading = true;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -766,41 +871,103 @@ class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
   }
 
   void _showAddDialog() {
-    final favoriteIds = _favorites.map((f) => f['id'] as int).toSet();
-    final available = _allGyms.where((g) => !favoriteIds.contains(g['id'] as int)).toList();
-
-    if (available.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aucune autre salle disponible.')),
-      );
-      return;
-    }
-
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Choisir une salle',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ...available.map((gym) => ListTile(
-                  leading: Icon(Icons.fitness_center, color: Colors.blue[700]),
-                  title: Text(gym['name'] as String),
-                  trailing: const Icon(Icons.add_circle_outline, color: Colors.blue),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _addFavorite(gym['id'] as int);
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final favoriteIds = _favorites.map((f) => f['id'] as int).toSet();
+          final filtered = _allGyms
+              .where((g) =>
+                  !favoriteIds.contains(g['id'] as int) &&
+                  (g['name'] as String)
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()))
+              .toList();
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Choisir une salle',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher une salle...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setModalState(() => _searchQuery = '');
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (v) {
+                    setModalState(() => _searchQuery = v);
+                    setState(() => _searchQuery = v);
                   },
-                )),
-          ],
-        ),
+                ),
+                const SizedBox(height: 8),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'Il n\'existe aucune salle pour l\'instant.'
+                            : 'Aucune salle trouvée pour "$_searchQuery".',
+                        style: TextStyle(color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final gym = filtered[i];
+                        return ListTile(
+                          leading: Icon(Icons.fitness_center,
+                              color: Colors.blue[700]),
+                          title: Text(gym['name'] as String),
+                          trailing: const Icon(Icons.add_circle_outline,
+                              color: Colors.blue),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                            _addFavorite(gym['id'] as int);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -827,15 +994,14 @@ class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
               ],
             ),
             const SizedBox(height: 4),
-            Text('Ajoutez jusqu\'à 3 salles de sport',
+            Text("Ajoutez jusqu'à 3 salles de sport",
                 style: TextStyle(fontSize: 12, color: Colors.grey[500])),
             const SizedBox(height: 16),
 
-            // Liste des favoris
             if (_favorites.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Text('Aucune salle ajoutée pour l\'instant.',
+                child: Text("Aucune salle ajoutée pour l'instant.",
                     style: TextStyle(color: Colors.grey[400], fontSize: 14)),
               )
             else
@@ -849,11 +1015,14 @@ class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
                       ),
                       child: ListTile(
                         dense: true,
-                        leading: Icon(Icons.fitness_center, color: Colors.blue[700], size: 20),
+                        leading: Icon(Icons.fitness_center,
+                            color: Colors.blue[700], size: 20),
                         title: Text(gym['name'] as String,
-                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
                         trailing: IconButton(
-                          icon: Icon(Icons.remove_circle_outline, color: Colors.red[400]),
+                          icon: Icon(Icons.remove_circle_outline,
+                              color: Colors.red[400]),
                           onPressed: () => _removeFavorite(gym['id'] as int),
                           tooltip: 'Retirer',
                         ),
@@ -861,15 +1030,14 @@ class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
                     ),
                   )),
 
-            // Bouton ajouter
             if (_favorites.length < 3) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: _showAddDialog,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Ajouter une salle'),
+                  icon: const Icon(Icons.search),
+                  label: const Text('Rechercher une salle'),
                   style: OutlinedButton.styleFrom(
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),

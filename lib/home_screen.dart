@@ -58,7 +58,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Onglet Entraînement connecté à la DB (programmes affichés + cliquables)
+// ════════════════════════════════════════════════════════════════════
+//  ONGLET ENTRAÎNEMENT
+// ════════════════════════════════════════════════════════════════════
+
 class TrainingTab extends StatefulWidget {
   const TrainingTab({super.key});
 
@@ -81,7 +84,6 @@ class _TrainingTabState extends State<TrainingTab> {
     setState(() {});
   }
 
-  /// Ouvrir l'écran de choix de création (manuelle ou IA)
   Future<void> _openCreate() async {
     final res = await Navigator.push(
       context,
@@ -90,7 +92,6 @@ class _TrainingTabState extends State<TrainingTab> {
     if (res != null) _reload();
   }
 
-  /// Ouvrir l'écran de visualisation d'un programme existant (lecture seule)
   Future<void> _openView(int programId) async {
     final res = await Navigator.push(
       context,
@@ -98,7 +99,6 @@ class _TrainingTabState extends State<TrainingTab> {
         builder: (_) => ViewWorkoutScreen(programId: programId),
       ),
     );
-    // Recharger si le programme a été modifié ou supprimé
     if (res != null) _reload();
   }
 
@@ -122,7 +122,6 @@ class _TrainingTabState extends State<TrainingTab> {
             ),
             const SizedBox(height: 20),
 
-            // "Séance du jour" = dernier programme sauvegardé (cliquable -> visualisation)
             Card(
               elevation: 4,
               shape: RoundedRectangleBorder(
@@ -166,9 +165,7 @@ class _TrainingTabState extends State<TrainingTab> {
                               latest == null
                                   ? 'Aucun programme'
                                   : '${latest.name} • ${latest.exercises.length} exos • ${latest.duration.toStringAsFixed(0)} min',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                              ),
+                              style: TextStyle(color: Colors.grey[600]),
                             ),
                           ],
                         ),
@@ -183,7 +180,6 @@ class _TrainingTabState extends State<TrainingTab> {
 
             const SizedBox(height: 20),
 
-            // Bouton démarrer la séance
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -207,7 +203,6 @@ class _TrainingTabState extends State<TrainingTab> {
 
             const SizedBox(height: 16),
 
-            // Bouton créer un entraînement
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -229,7 +224,6 @@ class _TrainingTabState extends State<TrainingTab> {
 
             const SizedBox(height: 30),
 
-            // Titre section programmes
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -246,7 +240,6 @@ class _TrainingTabState extends State<TrainingTab> {
             ),
             const SizedBox(height: 16),
 
-            // Liste des programmes
             if (snap.connectionState != ConnectionState.done)
               const Padding(
                 padding: EdgeInsets.all(32),
@@ -270,19 +263,18 @@ class _TrainingTabState extends State<TrainingTab> {
   }
 }
 
-/// Carte de programme
+// ════════════════════════════════════════════════════════════════════
+//  WIDGETS UTILITAIRES TRAINING
+// ════════════════════════════════════════════════════════════════════
+
 class _ProgramCard extends StatelessWidget {
   final WorkoutProgram program;
   final VoidCallback onTap;
 
-  const _ProgramCard({
-    required this.program,
-    required this.onTap,
-  });
+  const _ProgramCard({required this.program, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    // Trouver les groupes musculaires uniques
     final muscles = program.exercises
         .map((e) => e.exercise.muscleGroup)
         .where((m) => m.isNotEmpty)
@@ -301,7 +293,6 @@ class _ProgramCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              // Icône
               Container(
                 width: 48,
                 height: 48,
@@ -312,8 +303,6 @@ class _ProgramCard extends StatelessWidget {
                 child: const Icon(Icons.fitness_center, color: Colors.blue),
               ),
               const SizedBox(width: 16),
-
-              // Infos
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -321,26 +310,20 @@ class _ProgramCard extends StatelessWidget {
                     Text(
                       program.name,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                          fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${program.exercises.length} exercices • ${program.duration.toStringAsFixed(0)} min',
-                      style: TextStyle(
-                        color: Colors.grey[600],
-                        fontSize: 14,
-                      ),
+                      style:
+                          TextStyle(color: Colors.grey[600], fontSize: 14),
                     ),
                     if (muscles.isNotEmpty) ...[
                       const SizedBox(height: 2),
                       Text(
                         muscles,
                         style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 12,
-                        ),
+                            color: Colors.grey[500], fontSize: 12),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -348,9 +331,8 @@ class _ProgramCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Flèche
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+              Icon(Icons.arrow_forward_ios,
+                  size: 16, color: Colors.grey[400]),
             ],
           ),
         ),
@@ -359,10 +341,8 @@ class _ProgramCard extends StatelessWidget {
   }
 }
 
-/// Carte vide (aucun programme)
 class _EmptyCard extends StatelessWidget {
   final VoidCallback onCreatePressed;
-
   const _EmptyCard({required this.onCreatePressed});
 
   @override
@@ -380,14 +360,13 @@ class _EmptyCard extends StatelessWidget {
             Text(
               'Aucun programme',
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey[600]),
             ),
             const SizedBox(height: 8),
             Text(
-              'Créez votre premier programme d\'entraînement',
+              "Créez votre premier programme d'entraînement",
               style: TextStyle(color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
@@ -404,10 +383,8 @@ class _EmptyCard extends StatelessWidget {
   }
 }
 
-/// Carte d'erreur
 class _ErrorCard extends StatelessWidget {
   final String message;
-
   const _ErrorCard({required this.message});
 
   @override
@@ -423,11 +400,8 @@ class _ErrorCard extends StatelessWidget {
             Icon(Icons.error_outline, color: Colors.red[400]),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: Colors.red[700]),
-              ),
-            ),
+                child: Text(message,
+                    style: TextStyle(color: Colors.red[700]))),
           ],
         ),
       ),
@@ -435,7 +409,10 @@ class _ErrorCard extends StatelessWidget {
   }
 }
 
-// Placeholders autres onglets
+// ════════════════════════════════════════════════════════════════════
+//  ONGLET NUTRITION
+// ════════════════════════════════════════════════════════════════════
+
 class _NutritionTab extends StatefulWidget {
   const _NutritionTab();
 
@@ -449,74 +426,99 @@ class _NutritionTabState extends State<_NutritionTab> {
   double? _goalTotal;
   bool _dailyLoaded = false;
 
+  // ── Helpers calorimétriques ──────────────────────────────────────────────
+
   double _maintenanceCalories(User user) {
-    final bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age);
-    const activityFactor = 1.2; // activité légère par défaut
-    return bmr * activityFactor;
+    final weight = user.weight > 0 ? user.weight : 70.0;
+    final height = user.height > 0 ? user.height : 170.0;
+    final age = (user.age > 0 && user.age < 120) ? user.age : 25;
+    final bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    return (bmr * 1.2).clamp(1200, 5000);
   }
 
   double _goalCalories(User user) {
     final maintenance = _maintenanceCalories(user);
-    switch (user.goal) {
-      case 'Perte de poids':
-        return (maintenance - 300).clamp(1200, double.infinity);
-      case 'Prise de masse':
-        return maintenance + 300;
-      default:
-        return maintenance;
+    final goal = user.goal.toLowerCase().trim();
+    if (goal == 'perte de poids' || goal == 'weight_loss' || goal == 'perte') {
+      return (maintenance - 300).clamp(1200, double.infinity);
+    } else if (goal == 'prise de masse' ||
+        goal == 'muscle_gain' ||
+        goal == 'prise') {
+      return maintenance + 300;
     }
+    return maintenance;
   }
 
-  String _dayKey(DateTime date) {
-    final y = date.year.toString();
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y$m$d';
-  }
+  // ── Clés SharedPreferences ───────────────────────────────────────────────
 
-  String _prefKey(String name) => 'nutrition_${name}_${_dayKey(DateTime.now())}';
+  String _dayKey(DateTime date) =>
+      '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+
+  String _prefKey(String name) =>
+      'nutrition_${name}_${_dayKey(DateTime.now())}';
+
+  // ── Chargement ────────────────────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    final user = AuthService().currentUser;
+    if (user != null) _loadDaily(user);
+  }
 
   Future<void> _loadDaily(User user) async {
     if (_dailyLoaded) return;
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedGoal = prefs.getDouble(_prefKey('goal'));
+      final storedRemaining = prefs.getDouble(_prefKey('remaining'));
 
-    final goalKey = _prefKey('goal');
-    final remainingKey = _prefKey('remaining');
+      final maintenance = _maintenanceCalories(user);
+      final goalTotal = (storedGoal != null && storedGoal > 0)
+          ? storedGoal
+          : _goalCalories(user);
+      final remaining = (storedRemaining != null && storedRemaining >= 0)
+          ? storedRemaining
+          : goalTotal;
 
-    final storedGoal = prefs.getDouble(goalKey);
-    final storedRemaining = prefs.getDouble(remainingKey);
-
-    final maintenance = _maintenanceCalories(user);
-    final goalTotal = _goalCalories(user);
-
-    setState(() {
-      _maintenance = maintenance;
-      _goalTotal = storedGoal ?? goalTotal;
-      _remaining = storedRemaining ?? _goalTotal;
-      _dailyLoaded = true;
-    });
-
-    await prefs.setDouble(goalKey, _goalTotal!);
-    await prefs.setDouble(remainingKey, _remaining!);
+      if (!mounted) return;
+      setState(() {
+        _maintenance = maintenance;
+        _goalTotal = goalTotal;
+        _remaining = remaining;
+        _dailyLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      final maintenance = _maintenanceCalories(user);
+      final goalTotal = _goalCalories(user);
+      setState(() {
+        _maintenance = maintenance;
+        _goalTotal = goalTotal;
+        _remaining = goalTotal;
+        _dailyLoaded = true;
+      });
+    }
   }
 
   Future<void> _saveDaily() async {
     if (_goalTotal == null || _remaining == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_prefKey('goal'), _goalTotal!);
-    await prefs.setDouble(_prefKey('remaining'), _remaining!);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_prefKey('goal'), _goalTotal!);
+      await prefs.setDouble(_prefKey('remaining'), _remaining!);
+    } catch (_) {}
   }
 
   void _ensureCalories(User user) {
-    final maintenance = _maintenanceCalories(user);
-    final goalTotal = _goalCalories(user);
     if (_maintenance == null || _remaining == null || _goalTotal == null) {
-      _maintenance = maintenance;
-      _goalTotal = goalTotal;
-      _remaining = _remaining ?? goalTotal;
-      return;
+      _maintenance = _maintenanceCalories(user);
+      _goalTotal = _goalCalories(user);
+      _remaining = _remaining ?? _goalTotal;
     }
   }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   Future<void> _addCalories(BuildContext context, User user) async {
     final controller = TextEditingController();
@@ -541,9 +543,7 @@ class _NutritionTabState extends State<_NutritionTab> {
           ElevatedButton(
             onPressed: () {
               final value = double.tryParse(controller.text.trim());
-              if (value == null || value <= 0) {
-                return;
-              }
+              if (value == null || value <= 0) return;
               Navigator.pop(context, value);
             },
             child: const Text('Ajouter'),
@@ -553,12 +553,10 @@ class _NutritionTabState extends State<_NutritionTab> {
     );
 
     if (added == null) return;
-
     setState(() {
       _ensureCalories(user);
       _remaining = (_remaining! - added).clamp(0, double.infinity);
     });
-
     await _saveDaily();
   }
 
@@ -601,16 +599,14 @@ class _NutritionTabState extends State<_NutritionTab> {
           : double.tryParse(kcalValue?.toString() ?? '');
 
       if (kcal == null || kcal <= 0) continue;
-
       results.add(_FoodItem(name: name, kcalPer100g: kcal));
     }
-
     return results;
   }
 
   Future<_FoodItem?> _fetchFoodByBarcode(String barcode) async {
     final uri = Uri.parse(
-        'https://world.openfoodfacts.org/api/v2/product/$barcode.json')
+            'https://world.openfoodfacts.org/api/v2/product/$barcode.json')
         .replace(queryParameters: {
       'fields': 'product_name,product_name_fr,product_name_en,nutriments',
     });
@@ -624,13 +620,18 @@ class _NutritionTabState extends State<_NutritionTab> {
     final product = data['product'] as Map<String, dynamic>?;
     if (product == null) return null;
 
-    final name = ((product['product_name'] as String?)?.trim().isNotEmpty ?? false)
-        ? (product['product_name'] as String).trim()
-        : ((product['product_name_fr'] as String?)?.trim().isNotEmpty ?? false)
-            ? (product['product_name_fr'] as String).trim()
-            : ((product['product_name_en'] as String?)?.trim().isNotEmpty ?? false)
-                ? (product['product_name_en'] as String).trim()
-                : null;
+    final name =
+        ((product['product_name'] as String?)?.trim().isNotEmpty ?? false)
+            ? (product['product_name'] as String).trim()
+            : ((product['product_name_fr'] as String?)?.trim().isNotEmpty ??
+                    false)
+                ? (product['product_name_fr'] as String).trim()
+                : ((product['product_name_en'] as String?)
+                            ?.trim()
+                            .isNotEmpty ??
+                        false)
+                    ? (product['product_name_en'] as String).trim()
+                    : null;
 
     if (name == null || name.isEmpty) return null;
 
@@ -646,7 +647,6 @@ class _NutritionTabState extends State<_NutritionTab> {
         : double.tryParse(kcalValue?.toString() ?? '');
 
     if (kcal == null || kcal <= 0) return null;
-
     return _FoodItem(name: name, kcalPer100g: kcal);
   }
 
@@ -661,14 +661,11 @@ class _NutritionTabState extends State<_NutritionTab> {
     Future<void> runSearch(StateSetter setModalState) async {
       final query = controller.text.trim();
       if (query.isEmpty) return;
-
       final currentToken = ++searchToken;
-
       setModalState(() {
         loading = true;
         error = null;
       });
-
       try {
         final data = await _searchFoods(query);
         if (currentToken != searchToken) return;
@@ -703,18 +700,14 @@ class _NutritionTabState extends State<_NutritionTab> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
+                const Row(
                   children: [
-                    const Icon(Icons.search),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Ajouter un aliment',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    Icon(Icons.search),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text('Ajouter un aliment',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -725,8 +718,7 @@ class _NutritionTabState extends State<_NutritionTab> {
                     hintText: 'Rechercher un aliment',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                   textInputAction: TextInputAction.search,
                   onChanged: (_) {
@@ -741,31 +733,31 @@ class _NutritionTabState extends State<_NutritionTab> {
                 const SizedBox(height: 12),
                 if (loading)
                   const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: CircularProgressIndicator(),
-                  )
+                      padding: EdgeInsets.all(12),
+                      child: CircularProgressIndicator())
                 else if (error != null)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: Text(error!, style: TextStyle(color: Colors.red[700])),
+                    child: Text(error!,
+                        style: TextStyle(color: Colors.red[700])),
                   )
                 else if (results.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.all(8),
-                    child: Text('Aucun résultat'),
-                  )
+                      padding: EdgeInsets.all(8),
+                      child: Text('Aucun résultat'))
                 else
                   Flexible(
                     child: ListView.separated(
                       shrinkWrap: true,
                       itemCount: results.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, __) =>
+                          const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final item = results[index];
                         return ListTile(
                           title: Text(item.name),
-                          subtitle:
-                              Text('${item.kcalPer100g.toStringAsFixed(0)} kcal / 100g'),
+                          subtitle: Text(
+                              '${item.kcalPer100g.toStringAsFixed(0)} kcal / 100g'),
                           onTap: () => Navigator.pop(context, item),
                         );
                       },
@@ -789,9 +781,7 @@ class _NutritionTabState extends State<_NutritionTab> {
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            labelText: 'Grammes',
-            suffixText: 'g',
-          ),
+              labelText: 'Grammes', suffixText: 'g'),
         ),
         actions: [
           TextButton(
@@ -814,27 +804,19 @@ class _NutritionTabState extends State<_NutritionTab> {
   Future<void> _addFoodFromApi(BuildContext context, User user) async {
     final selected = await _showFoodSearch(context);
     if (selected == null) return;
-
     final grams = await _askPortionGrams(context);
     if (grams == null) return;
-
     final calories = selected.kcalPer100g * (grams / 100);
-
     setState(() {
       _ensureCalories(user);
       _remaining = (_remaining! - calories).clamp(0, double.infinity);
     });
-
     await _saveDaily();
-
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${selected.name} ajouté • -${calories.toStringAsFixed(0)} kcal',
-        ),
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+          '${selected.name} ajouté • -${calories.toStringAsFixed(0)} kcal'),
+    ));
   }
 
   Future<void> _scanBarcodeAndAdd(BuildContext context, User user) async {
@@ -842,60 +824,48 @@ class _NutritionTabState extends State<_NutritionTab> {
       context,
       MaterialPageRoute(builder: (_) => const _FoodScannerScreen()),
     );
-
     if (barcode == null || barcode.isEmpty) return;
-
     try {
       final food = await _fetchFoodByBarcode(barcode);
       if (food == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Produit introuvable pour ce code-barres.'),
-          ),
+              content: Text('Produit introuvable pour ce code-barres.')),
         );
         return;
       }
-
       final grams = await _askPortionGrams(context);
       if (grams == null) return;
-
       final calories = food.kcalPer100g * (grams / 100);
-
       setState(() {
         _ensureCalories(user);
         _remaining = (_remaining! - calories).clamp(0, double.infinity);
       });
-
       await _saveDaily();
-
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${food.name} ajouté • -${calories.toStringAsFixed(0)} kcal',
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            '${food.name} ajouté • -${calories.toStringAsFixed(0)} kcal'),
+      ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Erreur lors de la lecture du code-barres.'),
-        ),
+            content: Text('Erreur lors de la lecture du code-barres.')),
       );
     }
   }
 
   Widget _buildCalorieCard(BuildContext context, User user) {
     _ensureCalories(user);
-
     final maintenance = _maintenance!.round();
     final remaining = _remaining!.round();
 
     return Card(
       elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -915,10 +885,9 @@ class _NutritionTabState extends State<_NutritionTab> {
                 ),
                 const SizedBox(width: 12),
                 const Expanded(
-                  child: Text(
-                    'Calories de maintien',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text('Calories de maintien',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -926,19 +895,14 @@ class _NutritionTabState extends State<_NutritionTab> {
             Center(
               child: Column(
                 children: [
-                  Text(
-                    '$maintenance',
-                    style: const TextStyle(
-                      fontSize: 42,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.orange,
-                    ),
-                  ),
+                  Text('$maintenance',
+                      style: const TextStyle(
+                          fontSize: 42,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange)),
                   const SizedBox(height: 4),
-                  Text(
-                    'kcal / jour',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
+                  Text('kcal / jour',
+                      style: TextStyle(color: Colors.grey[600])),
                 ],
               ),
             ),
@@ -952,17 +916,12 @@ class _NutritionTabState extends State<_NutritionTab> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Calories restantes',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '$remaining kcal',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
-                    ),
-                  ),
+                  const Text('Calories restantes',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text('$remaining kcal',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green)),
                 ],
               ),
             ),
@@ -1013,15 +972,12 @@ class _NutritionTabState extends State<_NutritionTab> {
 
     if (user == null) {
       return const Center(
-        child: Text(
-          'Connectez-vous pour voir vos calories de maintien.',
-          textAlign: TextAlign.center,
-        ),
+        child: Text('Connectez-vous pour voir vos calories de maintien.',
+            textAlign: TextAlign.center),
       );
     }
 
     if (!_dailyLoaded) {
-      _loadDaily(user);
       return const Center(child: CircularProgressIndicator());
     }
 
@@ -1029,10 +985,9 @@ class _NutritionTabState extends State<_NutritionTab> {
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
       children: [
         const Center(
-          child: Text(
-            'Nutrition',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
+          child: Text('Nutrition',
+              style:
+                  TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 20),
         _buildCalorieCard(context, user),
@@ -1040,6 +995,10 @@ class _NutritionTabState extends State<_NutritionTab> {
     );
   }
 }
+
+// ════════════════════════════════════════════════════════════════════
+//  ONGLET MENU
+// ════════════════════════════════════════════════════════════════════
 
 class _MenuTab extends StatelessWidget {
   const _MenuTab();
@@ -1059,55 +1018,85 @@ class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
   double? _remaining;
   bool _loading = true;
 
+  // ── Helpers calorimétriques ──────────────────────────────────────────────
+
   double _maintenanceCalories(User user) {
-    final bmr = (10 * user.weight) + (6.25 * user.height) - (5 * user.age);
-    const activityFactor = 1.2;
-    return bmr * activityFactor;
+    final weight = user.weight > 0 ? user.weight : 70.0;
+    final height = user.height > 0 ? user.height : 170.0;
+    final age = (user.age > 0 && user.age < 120) ? user.age : 25;
+    final bmr = (10 * weight) + (6.25 * height) - (5 * age);
+    // clamp entre 1200 et 5000 pour éviter tout NaN / valeur aberrante
+    return (bmr * 1.2).clamp(1200, 5000);
   }
 
   double _goalCalories(User user) {
     final maintenance = _maintenanceCalories(user);
-    switch (user.goal) {
-      case 'Perte de poids':
-        return (maintenance - 300).clamp(1200, double.infinity);
-      case 'Prise de masse':
-        return maintenance + 300;
-      default:
-        return maintenance;
+    final goal = user.goal.toLowerCase().trim();
+    if (goal == 'perte de poids' || goal == 'weight_loss' || goal == 'perte') {
+      return (maintenance - 300).clamp(1200, double.infinity);
+    } else if (goal == 'prise de masse' ||
+        goal == 'muscle_gain' ||
+        goal == 'prise') {
+      return maintenance + 300;
+    }
+    return maintenance;
+  }
+
+  String _dayKey(DateTime date) =>
+      '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+
+  String _prefKey(String name) =>
+      'nutrition_${name}_${_dayKey(DateTime.now())}';
+
+  // ── Chargement via initState ─────────────────────────────────────────────
+
+  @override
+  void initState() {
+    super.initState();
+    final user = AuthService().currentUser;
+    if (user != null) {
+      _load(user);
+    } else {
+      setState(() => _loading = false);
     }
   }
 
-  String _dayKey(DateTime date) {
-    final y = date.year.toString();
-    final m = date.month.toString().padLeft(2, '0');
-    final d = date.day.toString().padLeft(2, '0');
-    return '$y$m$d';
-  }
-
-  String _prefKey(String name) => 'nutrition_${name}_${_dayKey(DateTime.now())}';
-
   Future<void> _load(User user) async {
-    final prefs = await SharedPreferences.getInstance();
-    final goalKey = _prefKey('goal');
-    final remainingKey = _prefKey('remaining');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final storedGoal = prefs.getDouble(_prefKey('goal'));
+      final storedRemaining = prefs.getDouble(_prefKey('remaining'));
 
-    final storedGoal = prefs.getDouble(goalKey);
-    final storedRemaining = prefs.getDouble(remainingKey);
+      // N'utiliser les valeurs stockées que si elles sont valides
+      final goalTotal = (storedGoal != null && storedGoal > 0)
+          ? storedGoal
+          : _goalCalories(user);
+      final remaining = (storedRemaining != null && storedRemaining >= 0)
+          ? storedRemaining
+          : goalTotal;
 
-    final goalTotal = storedGoal ?? _goalCalories(user);
-    final remaining = storedRemaining ?? goalTotal;
-
-    if (!mounted) return;
-    setState(() {
-      _goalTotal = goalTotal;
-      _remaining = remaining;
-      _loading = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _goalTotal = goalTotal;
+        _remaining = remaining;
+        _loading = false;
+      });
+    } catch (_) {
+      // Fallback : calculer directement sans SharedPreferences
+      if (!mounted) return;
+      final goalTotal = _goalCalories(user);
+      setState(() {
+        _goalTotal = goalTotal;
+        _remaining = goalTotal;
+        _loading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = AuthService().currentUser;
+
     if (user == null) {
       return const Center(
         child: Text('Connectez-vous pour voir vos calories.'),
@@ -1115,42 +1104,53 @@ class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
     }
 
     if (_loading) {
-      _load(user);
       return const Center(child: CircularProgressIndicator());
     }
 
-    final goal = (_goalTotal ?? 0).round();
-    final remaining = (_remaining ?? 0).round();
-    final consumed = (goal - remaining).clamp(0, goal);
-    final progress = goal == 0 ? 0.0 : consumed / goal;
+    // ── Calculs 100 % sécurisés ──────────────────────────────────────────────
+    // À ce stade _loading == false donc _load() a forcément été appelé.
+    // On recalcule en fallback si jamais la valeur est nulle/invalide.
+    final rawGoal = (_goalTotal != null && _goalTotal!.isFinite && _goalTotal! > 0)
+        ? _goalTotal!
+        : _goalCalories(user);
+    final goal = rawGoal.round(); // > 0 garanti
+
+    final rawRemaining =
+        (_remaining != null && _remaining!.isFinite && _remaining! >= 0)
+            ? _remaining!
+            : rawGoal;
+    final remaining = rawRemaining.round().clamp(0, goal);
+
+    final consumed = (goal - remaining).clamp(0, goal); // clamp sûr : 0 ≤ goal
+    final progress = consumed / goal; // goal > 0 garanti
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
       children: [
         const Center(
-          child: Text(
-            'Menu',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-          ),
+          child: Text('Menu',
+              style:
+                  TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
         ),
         const SizedBox(height: 20),
         Card(
           elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16)),
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Calories du jour',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                const Text('Calories du jour',
+                    style: TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final gaugeWidth = constraints.maxWidth;
-                    final fillWidth = (gaugeWidth * progress.clamp(0.0, 1.0));
+                    final fillWidth =
+                        gaugeWidth * progress.clamp(0.0, 1.0);
 
                     return Column(
                       children: [
@@ -1178,9 +1178,8 @@ class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
                         Text(
                           '$remaining kcal restantes',
                           style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold),
                         ),
                       ],
                     );
@@ -1190,19 +1189,15 @@ class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Objectif: $goal kcal',
-                      style: TextStyle(color: Colors.grey[700]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text('Objectif: $goal kcal',
+                        style: TextStyle(color: Colors.grey[700]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 6),
-                    Text(
-                      'Consommées: ${goal - remaining} kcal',
-                      style: TextStyle(color: Colors.grey[700]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                    Text('Consommées: $consumed kcal',
+                        style: TextStyle(color: Colors.grey[700]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ],
@@ -1214,14 +1209,15 @@ class _MenuCaloriesOverviewState extends State<_MenuCaloriesOverview> {
   }
 }
 
+// ════════════════════════════════════════════════════════════════════
+//  SCANNER CODE-BARRES
+// ════════════════════════════════════════════════════════════════════
+
 class _FoodItem {
   final String name;
   final double kcalPer100g;
 
-  const _FoodItem({
-    required this.name,
-    required this.kcalPer100g,
-  });
+  const _FoodItem({required this.name, required this.kcalPer100g});
 }
 
 class _FoodScannerScreen extends StatefulWidget {

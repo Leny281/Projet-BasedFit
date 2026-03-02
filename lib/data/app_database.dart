@@ -27,9 +27,27 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
-        // Table des programmes d'entraînement
+        // 1. Table des utilisateurs (Doit être créée en premier car les autres tables y font référence)
+        await db.execute('''
+          CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            phone_number TEXT NOT NULL,
+            birth_date TEXT NOT NULL,
+            height REAL NOT NULL,
+            weight REAL NOT NULL,
+            goal TEXT NOT NULL,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+          );
+        ''');
+
+        // 2. Table des programmes d'entraînement
         await db.execute('''
           CREATE TABLE programs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +59,7 @@ class AppDatabase {
           );
         ''');
 
-        // Table des exercices dans les programmes
+        // 3. Table des exercices dans les programmes
         await db.execute('''
           CREATE TABLE program_exercises (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,25 +79,7 @@ class AppDatabase {
           );
         ''');
 
-        // Table des utilisateurs
-        await db.execute('''
-          CREATE TABLE users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            phone_number TEXT NOT NULL,
-            birth_date TEXT NOT NULL,
-            height REAL NOT NULL,
-            weight REAL NOT NULL,
-            goal TEXT NOT NULL,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT NOT NULL
-          );
-        ''');
-
-        // Table pour l'utilisateur connecté (stocke l'ID)
+        // 4. Table pour l'utilisateur connecté (stocke l'ID)
         await db.execute('''
           CREATE TABLE current_session (
             id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -88,7 +88,7 @@ class AppDatabase {
           );
         ''');
 
-        // Table des statistiques utilisateur
+        // 5. Table des statistiques utilisateur
         await db.execute('''
           CREATE TABLE user_stats (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +101,7 @@ class AppDatabase {
           );
         ''');
 
-        // Table des forums
+        // 6. Table des forums
         await db.execute('''
           CREATE TABLE forums (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -114,7 +114,7 @@ class AppDatabase {
           );
         ''');
 
-        // Table des messages dans les forums
+        // 7. Table des messages dans les forums
         await db.execute('''
           CREATE TABLE forum_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,10 +127,7 @@ class AppDatabase {
           );
         ''');
 
-        // Initialiser la ligne de session (vide au début)
-        await db.insert('current_session', {'id': 1, 'user_id': null});
-
-        // ── Table des salles de sport ─────────────────────────────────
+        // 8. Table des salles de sport
         await db.execute('''
           CREATE TABLE gyms (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,7 +138,7 @@ class AppDatabase {
           );
         ''');
 
-        // ── Table des salles favorites des utilisateurs ───────────────
+        // 9. Table des salles favorites des utilisateurs
         await db.execute('''
           CREATE TABLE user_gym_favorites (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -154,7 +151,23 @@ class AppDatabase {
           );
         ''');
 
-        // ── Compte gérant par défaut ──────────────────────────────────
+        // 10. Table des notifications
+        await db.execute('''
+          CREATE TABLE notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // Initialiser la ligne de session (vide au début)
+        await db.insert('current_session', {'id': 1, 'user_id': null});
+
+        // Initialiser le compte gérant par défaut
         await _seedManagerAccount(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
@@ -263,6 +276,31 @@ class AppDatabase {
               UNIQUE(user_id, gym_id),
               FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
               FOREIGN KEY(gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+            );
+          ''');
+        }
+
+        if (oldVersion < 6) {
+          // Migration v5 → v6 : table programs manquante + notifications
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS programs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              name TEXT NOT NULL,
+              duration REAL NOT NULL,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS notifications (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              title TEXT NOT NULL,
+              body TEXT NOT NULL,
+              is_read INTEGER NOT NULL DEFAULT 0,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
           ''');
         }

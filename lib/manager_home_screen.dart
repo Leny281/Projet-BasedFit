@@ -38,6 +38,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     _UsersPage(managerId: widget.managerId, gymName: _gymName),
     const _MusicPage(),
     const _EventsPage(),
+    _SettingsPage(managerId: widget.managerId, gymName: _gymName),
   ];
 
   final List<String> _titles = const [
@@ -45,6 +46,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     'Utilisateurs',
     'Musiques & Playlists',
     'Événements',
+    'Paramètres',
   ];
 
   @override
@@ -95,6 +97,11 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
             icon: Icon(Icons.event_outlined),
             activeIcon: Icon(Icons.event),
             label: 'Événements',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings_outlined),
+            activeIcon: Icon(Icons.settings),
+            label: 'Paramètres',
           ),
         ],
       ),
@@ -278,9 +285,9 @@ class _UsersPageState extends State<_UsersPage> {
   }
 
   Future<void> _loadMembers() async {
+    setState(() => _loading = true);
     final db = await AppDatabase.instance.database;
 
-    // Récupérer l'id de la salle du gérant
     final gymResult = await db.query(
       'gyms',
       columns: ['id'],
@@ -297,7 +304,6 @@ class _UsersPageState extends State<_UsersPage> {
     final gymId = gymResult.first['id'] as int;
     setState(() => _gymId = gymId);
 
-    // Récupérer les utilisateurs ayant cette salle en favori
     final members = await db.rawQuery('''
       SELECT u.id, u.first_name, u.last_name, u.email, u.goal, u.created_at
       FROM users u
@@ -312,11 +318,64 @@ class _UsersPageState extends State<_UsersPage> {
     });
   }
 
+  Future<void> _excludeMember(Map<String, dynamic> member) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exclure ce membre ?'),
+        content: Text(
+          'Voulez-vous retirer ${member['first_name']} ${member['last_name']} de votre salle ?\n\n'
+          'Il recevra une notification.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Exclure'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final db = await AppDatabase.instance.database;
+    final userId = member['id'] as int;
+
+    await db.delete(
+      'user_gym_favorites',
+      where: 'user_id = ? AND gym_id = ?',
+      whereArgs: [userId, _gymId],
+    );
+
+    await db.insert('notifications', {
+      'user_id': userId,
+      'title': 'Accès retiré',
+      'body': 'Vous avez été retiré de la salle "${widget.gymName}" par le gérant.',
+      'is_read': 0,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '${member['first_name']} ${member['last_name']} a été retiré de la salle.'),
+          backgroundColor: Colors.orange[700],
+        ),
+      );
+    }
+
+    await _loadMembers();
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+    if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_gymId == null) {
       return Center(
@@ -351,7 +410,7 @@ class _UsersPageState extends State<_UsersPage> {
                       Icon(Icons.people_outline, size: 64, color: Colors.grey[300]),
                       const SizedBox(height: 16),
                       Text(
-                        'Aucun membre n\'a encore\nchoisi votre salle en favori.',
+                        "Aucun membre n'a encore\nchoisi votre salle en favori.",
                         style: TextStyle(color: Colors.grey[500], fontSize: 15),
                         textAlign: TextAlign.center,
                       ),
@@ -379,10 +438,9 @@ class _UsersPageState extends State<_UsersPage> {
                             color: Colors.blue[700],
                           ),
                         ),
-                        if (widget.gymName.isNotEmpty) ...[
+                        if (widget.gymName.isNotEmpty)
                           Text(' — ${widget.gymName}',
                               style: TextStyle(fontSize: 14, color: Colors.grey[600])),
-                        ],
                       ],
                     ),
                   );
@@ -390,7 +448,8 @@ class _UsersPageState extends State<_UsersPage> {
                 final member = _members[index - 1];
                 final initials =
                     '${(member['first_name'] as String).substring(0, 1)}'
-                    '${(member['last_name'] as String).substring(0, 1)}'.toUpperCase();
+                    '${(member['last_name'] as String).substring(0, 1)}'
+                    .toUpperCase();
                 return Card(
                   margin: const EdgeInsets.only(bottom: 10),
                   elevation: 2,
@@ -399,29 +458,369 @@ class _UsersPageState extends State<_UsersPage> {
                     leading: CircleAvatar(
                       backgroundColor: Colors.blue[100],
                       child: Text(initials,
-                          style: TextStyle(color: Colors.blue[700],
-                              fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              color: Colors.blue[700], fontWeight: FontWeight.bold)),
                     ),
                     title: Text(
                       '${member['first_name']} ${member['last_name']}',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(member['email'] as String),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        member['goal'] as String? ?? '',
-                        style: TextStyle(fontSize: 11, color: Colors.blue[700]),
-                      ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[50],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            member['goal'] as String? ?? '',
+                            style: TextStyle(fontSize: 11, color: Colors.blue[700]),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: Icon(Icons.person_remove, color: Colors.red[400], size: 22),
+                          tooltip: 'Exclure de la salle',
+                          onPressed: () => _excludeMember(member),
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  PAGE 5 — PARAMÈTRES (suppression salle & compte)
+// ════════════════════════════════════════════════════════════════════
+
+class _SettingsPage extends StatelessWidget {
+  final int managerId;
+  final String gymName;
+  const _SettingsPage({required this.managerId, required this.gymName});
+
+  // ── Suppression de la salle ──────────────────────────────────────
+
+  Future<void> _deleteGym(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange[700]),
+            const SizedBox(width: 8),
+            const Flexible(child: Text('Supprimer la salle ?')),
+          ],
+        ),
+        content: Text(
+          'Voulez-vous supprimer la salle "$gymName" ?\n\n'
+          'Elle sera retirée des favoris de tous les membres qui l\'avaient enregistrée.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[700]),
+            child: const Text('Supprimer la salle'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final db = await AppDatabase.instance.database;
+
+    // Récupérer l'id de la salle
+    final gymResult = await db.query(
+      'gyms',
+      columns: ['id'],
+      where: 'manager_user_id = ?',
+      whereArgs: [managerId],
+      limit: 1,
+    );
+
+    if (gymResult.isEmpty) return;
+    final gymId = gymResult.first['id'] as int;
+
+    // Récupérer les membres pour leur envoyer une notification
+    final members = await db.rawQuery('''
+      SELECT u.id FROM users u
+      INNER JOIN user_gym_favorites f ON f.user_id = u.id
+      WHERE f.gym_id = ?
+    ''', [gymId]);
+
+    // Notifier chaque membre
+    for (final member in members) {
+      await db.insert('notifications', {
+        'user_id': member['id'] as int,
+        'title': 'Salle supprimée',
+        'body': 'La salle "$gymName" a été supprimée et retirée de vos favoris.',
+        'is_read': 0,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    }
+
+    // Supprimer les favoris liés à cette salle (CASCADE le fait normalement,
+    // mais on le fait explicitement au cas où les FK seraient désactivées)
+    await db.delete('user_gym_favorites', where: 'gym_id = ?', whereArgs: [gymId]);
+
+    // Supprimer la salle
+    await db.delete('gyms', where: 'id = ?', whereArgs: [gymId]);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('La salle "$gymName" a été supprimée.'),
+          backgroundColor: Colors.orange[700],
+        ),
+      );
+      // Retour à l'écran d'auth car le gérant n'a plus de salle
+      Navigator.of(context).pushReplacementNamed('/auth');
+    }
+  }
+
+  // ── Suppression du compte gérant ─────────────────────────────────
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final passwordController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.delete_forever, color: Colors.red[800]),
+            const SizedBox(width: 8),
+            const Flexible(child: Text('Supprimer mon compte')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cette action est définitive et irréversible.\n\n'
+              'Votre compte sera supprimé ainsi que la salle associée. '
+              'Tous les membres recevront une notification.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirmez votre mot de passe',
+                prefixIcon: Icon(Icons.lock_outline),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final password = passwordController.text.trim();
+              if (password.isEmpty) return;
+
+              final db = await AppDatabase.instance.database;
+              final hashed = AppDatabase.hashPassword(password);
+
+              final result = await db.query(
+                'users',
+                where: 'id = ? AND password = ?',
+                whereArgs: [managerId, hashed],
+                limit: 1,
+              );
+
+              if (result.isEmpty) {
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mot de passe incorrect.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
+
+              // Trouver la salle du gérant et notifier les membres
+              final gymResult = await db.query(
+                'gyms',
+                columns: ['id'],
+                where: 'manager_user_id = ?',
+                whereArgs: [managerId],
+                limit: 1,
+              );
+
+              if (gymResult.isNotEmpty) {
+                final gymId = gymResult.first['id'] as int;
+                final members = await db.rawQuery('''
+                  SELECT u.id FROM users u
+                  INNER JOIN user_gym_favorites f ON f.user_id = u.id
+                  WHERE f.gym_id = ?
+                ''', [gymId]);
+
+                for (final member in members) {
+                  await db.insert('notifications', {
+                    'user_id': member['id'] as int,
+                    'title': 'Salle supprimée',
+                    'body': 'La salle "$gymName" a été supprimée et retirée de vos favoris.',
+                    'is_read': 0,
+                    'created_at': DateTime.now().toIso8601String(),
+                  });
+                }
+
+                // Supprimer les favoris liés à cette salle
+                await db.delete('user_gym_favorites', where: 'gym_id = ?', whereArgs: [gymId]);
+                await db.delete('gyms', where: 'id = ?', whereArgs: [gymId]);
+              }
+
+              // Supprimer le compte (CASCADE supprime le reste)
+              await db.delete('users', where: 'id = ?', whereArgs: [managerId]);
+
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/auth');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
+            child: const Text('Supprimer définitivement'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // ── Infos salle ───────────────────────────────────────────
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Ma salle',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Divider(),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.fitness_center, color: Colors.blue[700]),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        gymName.isNotEmpty ? gymName : 'Aucune salle',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // ── Zone danger ───────────────────────────────────────────
+        Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.red[100]!),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red[700], size: 20),
+                    const SizedBox(width: 8),
+                    Text('Zone dangereuse',
+                        style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red[700])),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Supprimer la salle
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: gymName.isNotEmpty ? () => _deleteGym(context) : null,
+                    icon: Icon(Icons.delete_outline, color: Colors.orange[700]),
+                    label: Text(
+                      'Supprimer la salle',
+                      style: TextStyle(color: Colors.orange[700]),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.orange[300]!),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Retire la salle des favoris de tous les membres.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                ),
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 16),
+
+                // Supprimer le compte
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _deleteAccount(context),
+                    icon: const Icon(Icons.delete_forever, color: Colors.white),
+                    label: const Text('Supprimer mon compte'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red[800],
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Supprime votre compte, votre salle et notifie tous les membres. Action irréversible.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
