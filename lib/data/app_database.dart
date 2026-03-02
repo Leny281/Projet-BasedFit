@@ -27,7 +27,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         // Table des programmes d'entraînement
         await db.execute('''
@@ -130,6 +130,30 @@ class AppDatabase {
         // Initialiser la ligne de session (vide au début)
         await db.insert('current_session', {'id': 1, 'user_id': null});
 
+        // ── Table des salles de sport ─────────────────────────────────
+        await db.execute('''
+          CREATE TABLE gyms (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            manager_user_id INTEGER NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(manager_user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // ── Table des salles favorites des utilisateurs ───────────────
+        await db.execute('''
+          CREATE TABLE user_gym_favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            gym_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, gym_id),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+          );
+        ''');
+
         // ── Compte gérant par défaut ──────────────────────────────────
         await _seedManagerAccount(db);
       },
@@ -216,8 +240,31 @@ class AppDatabase {
 
         if (oldVersion < 4) {
           // Migration v3 → v4 : insertion du compte gérant par défaut
-          // (si la DB existait avant cette version, on l'ajoute ici)
           await _seedManagerAccount(db);
+        }
+
+        if (oldVersion < 5) {
+          // Migration v4 → v5 : tables salles et favoris
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS gyms (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              manager_user_id INTEGER NOT NULL UNIQUE,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(manager_user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS user_gym_favorites (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              user_id INTEGER NOT NULL,
+              gym_id INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              UNIQUE(user_id, gym_id),
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+              FOREIGN KEY(gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+            );
+          ''');
         }
       },
       onConfigure: (db) async {

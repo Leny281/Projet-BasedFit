@@ -37,8 +37,12 @@ class _AuthScreenState extends State<AuthScreen>
   final _managerFormKey = GlobalKey<FormState>();
   final _managerEmailController = TextEditingController();
   final _managerPasswordController = TextEditingController();
+  final _managerFirstNameController = TextEditingController();
+  final _managerLastNameController = TextEditingController();
+  final _gymNameController = TextEditingController();
   bool _managerIsLoading = false;
   bool _managerObscurePassword = true;
+  bool _isManagerRegister = false; // false = connexion, true = création compte
 
   @override
   void initState() {
@@ -58,6 +62,9 @@ class _AuthScreenState extends State<AuthScreen>
     _weightController.dispose();
     _managerEmailController.dispose();
     _managerPasswordController.dispose();
+    _managerFirstNameController.dispose();
+    _managerLastNameController.dispose();
+    _gymNameController.dispose();
     super.dispose();
   }
 
@@ -137,10 +144,9 @@ class _AuthScreenState extends State<AuthScreen>
 
                       // Contenu des onglets
                       SizedBox(
-                        // Hauteur approximative pour éviter les débordements
                         height: _tabController.index == 0
                             ? (_isLogin ? 280 : 620)
-                            : 230,
+                            : (_isManagerRegister ? 520 : 280),
                         child: TabBarView(
                           controller: _tabController,
                           children: [
@@ -237,75 +243,118 @@ class _AuthScreenState extends State<AuthScreen>
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Mode inscription gérant
+          if (_isManagerRegister) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _managerFirstNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Prénom',
+                      prefixIcon: const Icon(Icons.person),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _managerLastNameController,
+                    decoration: InputDecoration(
+                      labelText: 'Nom',
+                      prefixIcon: const Icon(Icons.person_outline),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    validator: (v) => (v == null || v.isEmpty) ? 'Requis' : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _gymNameController,
+              decoration: InputDecoration(
+                labelText: 'Nom de la salle de sport',
+                prefixIcon: const Icon(Icons.fitness_center),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Veuillez entrer le nom de la salle'
+                  : null,
+            ),
+            const SizedBox(height: 12),
+          ],
+
           TextFormField(
             controller: _managerEmailController,
             decoration: InputDecoration(
-              labelText: 'Identifiant gérant',
+              labelText: 'Email gérant',
               prefixIcon: const Icon(Icons.badge),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
             keyboardType: TextInputType.emailAddress,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Veuillez entrer votre identifiant';
-              }
+              if (value == null || value.isEmpty) return 'Veuillez entrer votre email';
+              if (!value.contains('@')) return 'Email invalide';
               return null;
             },
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           TextFormField(
             controller: _managerPasswordController,
             decoration: InputDecoration(
               labelText: 'Mot de passe',
               prefixIcon: const Icon(Icons.lock),
               suffixIcon: IconButton(
-                icon: Icon(_managerObscurePassword
-                    ? Icons.visibility
-                    : Icons.visibility_off),
-                onPressed: () {
-                  setState(() {
-                    _managerObscurePassword = !_managerObscurePassword;
-                  });
-                },
+                icon: Icon(_managerObscurePassword ? Icons.visibility : Icons.visibility_off),
+                onPressed: () => setState(() => _managerObscurePassword = !_managerObscurePassword),
               ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
             obscureText: _managerObscurePassword,
             validator: (value) {
-              if (value == null || value.isEmpty) {
-                return 'Veuillez entrer votre mot de passe';
-              }
+              if (value == null || value.isEmpty) return 'Veuillez entrer votre mot de passe';
+              if (_isManagerRegister && value.length < 6) return 'Minimum 6 caractères';
               return null;
             },
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton(
-              onPressed: _managerIsLoading ? null : _handleManagerLogin,
+              onPressed: _managerIsLoading
+                  ? null
+                  : (_isManagerRegister ? _handleManagerRegister : _handleManagerLogin),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.blue[800],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _managerIsLoading
                   ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                      height: 20, width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : const Text(
-                      'Accéder à l\'espace gérant',
-                      style: TextStyle(fontSize: 16),
+                  : Text(
+                      _isManagerRegister ? 'Créer le compte gérant' : 'Accéder à l\'espace gérant',
+                      style: const TextStyle(fontSize: 16),
                     ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => setState(() {
+              _isManagerRegister = !_isManagerRegister;
+              _managerFormKey.currentState?.reset();
+            }),
+            child: Text(
+              _isManagerRegister
+                  ? 'Déjà un compte gérant ? Se connecter'
+                  : 'Créer un compte gérant',
             ),
           ),
         ],
@@ -564,13 +613,10 @@ class _AuthScreenState extends State<AuthScreen>
 
   Future<void> _handleManagerLogin() async {
     if (!_managerFormKey.currentState!.validate()) return;
-
     setState(() => _managerIsLoading = true);
-
     try {
       final email = _managerEmailController.text.trim();
       final hashedPassword = AppDatabase.hashPassword(_managerPasswordController.text);
-
       final db = await AppDatabase.instance.database;
       final result = await db.query(
         'users',
@@ -578,16 +624,86 @@ class _AuthScreenState extends State<AuthScreen>
         whereArgs: [email, hashedPassword],
         limit: 1,
       );
-
       if (result.isNotEmpty && mounted) {
+        final managerId = result.first['id'] as int;
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const ManagerHomeScreen()),
+          MaterialPageRoute(
+            builder: (context) => ManagerHomeScreen(managerId: managerId),
+          ),
         );
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Identifiants gérant incorrects'),
             backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _managerIsLoading = false);
+    }
+  }
+
+  Future<void> _handleManagerRegister() async {
+    if (!_managerFormKey.currentState!.validate()) return;
+    setState(() => _managerIsLoading = true);
+    try {
+      final email = _managerEmailController.text.trim();
+      final hashedPassword = AppDatabase.hashPassword(_managerPasswordController.text);
+      final gymName = _gymNameController.text.trim();
+      final db = await AppDatabase.instance.database;
+
+      // Vérifier que l'email n'est pas déjà utilisé
+      final existing = await db.query(
+        'users',
+        where: 'email = ?',
+        whereArgs: [email],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Cet email est déjà utilisé'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Créer le compte gérant
+      final managerId = await db.insert('users', {
+        'first_name': _managerFirstNameController.text.trim(),
+        'last_name': _managerLastNameController.text.trim(),
+        'email': email,
+        'password': hashedPassword,
+        'phone_number': '0000000000',
+        'birth_date': '1990-01-01',
+        'height': 170.0,
+        'weight': 70.0,
+        'goal': 'management',
+        'is_admin': 1,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      // Créer la salle associée
+      await db.insert('gyms', {
+        'name': gymName,
+        'manager_user_id': managerId,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => ManagerHomeScreen(managerId: managerId),
           ),
         );
       }
