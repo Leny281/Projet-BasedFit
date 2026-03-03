@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'data/app_database.dart';
+import 'models/event_model.dart';
+import 'services/event_service.dart';
+import 'manager_home_screen/create_event_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
   final int managerId;
@@ -37,7 +40,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
     _DashboardPage(managerId: widget.managerId, gymName: _gymName),
     _UsersPage(managerId: widget.managerId, gymName: _gymName),
     const _MusicPage(),
-    const _EventsPage(),
+    _EventsPage(managerId: widget.managerId),
     _SettingsPage(managerId: widget.managerId, gymName: _gymName),
   ];
 
@@ -838,14 +841,523 @@ class _MusicPage extends StatelessWidget {
         color: Colors.purple);
 }
 
-class _EventsPage extends StatelessWidget {
-  const _EventsPage();
+// ════════════════════════════════════════════════════════════════════
+//  PAGE 4 — ÉVÉNEMENTS
+// ════════════════════════════════════════════════════════════════════
+
+class _EventsPage extends StatefulWidget {
+  final int managerId;
+  const _EventsPage({required this.managerId});
+
   @override
-  Widget build(BuildContext context) => _PlaceholderPage(
-        icon: Icons.event, title: 'Événements de la salle',
-        description: 'Créez et gérez les événements\net animations de votre salle.',
-        color: Colors.teal);
+  State<_EventsPage> createState() => _EventsPageState();
 }
+
+class _EventsPageState extends State<_EventsPage> {
+  List<Event> _events = [];
+  Map<int, int> _participantCounts = {};
+  int? _gymId;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGymAndEvents();
+  }
+
+  Future<void> _loadGymAndEvents() async {
+    setState(() => _isLoading = true);
+    final db = await AppDatabase.instance.database;
+    
+    // Récupérer l'ID de la salle
+    final gymResult = await db.query(
+      'gyms',
+      columns: ['id'],
+      where: 'manager_user_id = ?',
+      whereArgs: [widget.managerId],
+      limit: 1,
+    );
+
+    if (gymResult.isNotEmpty) {
+      _gymId = gymResult.first['id'] as int;
+      await _loadEvents();
+    }
+    
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _loadEvents() async {
+    if (_gymId == null) return;
+    
+    final events = await EventService.getEventsByGym(_gymId!);
+    final counts = <int, int>{};
+    
+    for (final event in events) {
+      if (event.id != null) {
+        counts[event.id!] = await EventService.getParticipantCount(event.id!);
+      }
+    }
+    
+    setState(() {
+      _events = events;
+      _participantCounts = counts;
+    });
+  }
+
+  Future<void> _createEvent() async {
+    if (_gymId == null) return;
+    
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateEventScreen(gymId: _gymId!),
+      ),
+    );
+    
+    if (result == true) {
+      await _loadEvents();
+    }
+  }
+
+  Future<void> _editEvent(Event event) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CreateEventScreen(
+          gymId: _gymId!,
+          existingEvent: event,
+        ),
+      ),
+    );
+    
+    if (result == true) {
+      await _loadEvents();
+    }
+  }
+
+  Future<void> _deleteEvent(Event event) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
+            const SizedBox(width: 8),
+            const Flexible(child: Text('Supprimer l\'événement ?')),
+          ],
+        ),
+        content: Text(
+          'Voulez-vous supprimer l\'événement "${event.name}" ?\n\n'
+          'Tous les participants seront désinscrits.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[700]),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && event.id != null) {
+      await EventService.deleteEvent(event.id!);
+      await _loadEvents();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Événement supprimé avec succès'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _viewParticipants(Event event) async {
+    if (event.id == null) return;
+    
+    final participants = await EventService.getEventParticipants(event.id!);
+    
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.people, color: Colors.teal[700]),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Participants (${participants.length}/${event.maxParticipants})',
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: participants.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'Aucun participant pour le moment',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: participants.length,
+                  itemBuilder: (context, index) {
+                    final participant = participants[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.teal[100],
+                        child: Text(
+                          '${(participant['first_name'] as String).substring(0, 1)}'
+                          '${(participant['last_name'] as String).substring(0, 1)}',
+                          style: TextStyle(
+                            color: Colors.teal[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        '${participant['first_name']} ${participant['last_name']}',
+                      ),
+                      subtitle: Text(participant['email'] as String),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Fermer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_gymId == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                'Aucune salle associée à ce compte',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadEvents,
+      child: _events.isEmpty
+          ? ListView(
+              padding: const EdgeInsets.all(32),
+              children: [
+                const SizedBox(height: 60),
+                Center(
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.teal[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.event, size: 64, color: Colors.teal[700]),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Aucun événement',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.teal[800],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Créez votre premier événement\npour animer votre salle !',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 32),
+                      ElevatedButton.icon(
+                        onPressed: _createEvent,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Créer un événement'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.event, color: Colors.teal[700], size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_events.length} événement${_events.length > 1 ? 's' : ''}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: _createEvent,
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Nouveau'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal[700],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _events.length,
+                    itemBuilder: (context, index) {
+                      final event = _events[index];
+                      final participantCount = _participantCounts[event.id] ?? 0;
+                      final isFull = participantCount >= event.maxParticipants;
+
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: InkWell(
+                          onTap: () => _editEvent(event),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.teal[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.event,
+                                        color: Colors.teal[700],
+                                        size: 24,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            event.name,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            event.description,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey[600],
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _InfoChip(
+                                      icon: Icons.timer,
+                                      label: '${event.duration} min',
+                                      color: Colors.blue,
+                                    ),
+                                    _InfoChip(
+                                      icon: Icons.people,
+                                      label: '$participantCount/${event.maxParticipants}',
+                                      color: isFull ? Colors.red : Colors.green,
+                                    ),
+                                    _InfoChip(
+                                      icon: Icons.emoji_events,
+                                      label: event.reward,
+                                      color: Colors.amber,
+                                    ),
+                                  ],
+                                ),
+                                if (event.eventDate != null) ...[
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today,
+                                          size: 14, color: Colors.grey[600]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${event.eventDate!.day}/${event.eventDate!.month}/${event.eventDate!.year} '
+                                        'à ${event.eventDate!.hour.toString().padLeft(2, '0')}:${event.eventDate!.minute.toString().padLeft(2, '0')}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    TextButton.icon(
+                                      onPressed: () => _viewParticipants(event),
+                                      icon: const Icon(Icons.people, size: 18),
+                                      label: const Text('Participants'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.teal[700],
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () => _editEvent(event),
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      label: const Text('Modifier'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.blue[700],
+                                      ),
+                                    ),
+                                    TextButton.icon(
+                                      onPressed: () => _deleteEvent(event),
+                                      icon: const Icon(Icons.delete, size: 18),
+                                      label: const Text('Supprimer'),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: Colors.red[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final MaterialColor color;
+
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color[50],
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color[200]!),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: color[700]),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color[700],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  PLACEHOLDER PAGE (pour pages non implémentées)
+// ════════════════════════════════════════════════════════════════════
 
 class _PlaceholderPage extends StatelessWidget {
   final IconData icon;

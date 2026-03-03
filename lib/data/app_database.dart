@@ -27,7 +27,7 @@ class AppDatabase {
 
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         // 1. Table des utilisateurs (Doit être créée en premier car les autres tables y font référence)
         await db.execute('''
@@ -160,6 +160,35 @@ class AppDatabase {
             body TEXT NOT NULL,
             is_read INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // 11. Table des événements
+        await db.execute('''
+          CREATE TABLE events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            duration INTEGER NOT NULL,
+            max_participants INTEGER NOT NULL,
+            reward TEXT NOT NULL,
+            gym_id INTEGER NOT NULL,
+            event_date TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+          );
+        ''');
+
+        // 12. Table des participants aux événements
+        await db.execute('''
+          CREATE TABLE event_participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            joined_at TEXT NOT NULL,
+            UNIQUE(event_id, user_id),
+            FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
           );
         ''');
@@ -300,6 +329,35 @@ class AppDatabase {
               body TEXT NOT NULL,
               is_read INTEGER NOT NULL DEFAULT 0,
               created_at TEXT NOT NULL,
+              FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+          ''');
+        }
+
+        if (oldVersion < 7) {
+          // Migration v6 → v7 : tables événements
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS events (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              description TEXT NOT NULL,
+              duration INTEGER NOT NULL,
+              max_participants INTEGER NOT NULL,
+              reward TEXT NOT NULL,
+              gym_id INTEGER NOT NULL,
+              event_date TEXT,
+              created_at TEXT NOT NULL,
+              FOREIGN KEY(gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+            );
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS event_participants (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              event_id INTEGER NOT NULL,
+              user_id INTEGER NOT NULL,
+              joined_at TEXT NOT NULL,
+              UNIQUE(event_id, user_id),
+              FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
               FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
           ''');
