@@ -1276,29 +1276,31 @@ class _EventsPageState extends State<_EventsPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
-                                    TextButton.icon(
+                                    IconButton(
                                       onPressed: () => _viewParticipants(event),
-                                      icon: const Icon(Icons.people, size: 18),
-                                      label: const Text('Participants'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.teal[700],
-                                      ),
+                                      icon: const Icon(Icons.people, size: 22),
+                                      tooltip: 'Voir les participants',
+                                      color: Colors.teal[700],
+                                      padding: const EdgeInsets.all(8),
+                                      constraints: const BoxConstraints(),
                                     ),
-                                    TextButton.icon(
+                                    const SizedBox(width: 4),
+                                    IconButton(
                                       onPressed: () => _editEvent(event),
-                                      icon: const Icon(Icons.edit, size: 18),
-                                      label: const Text('Modifier'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.blue[700],
-                                      ),
+                                      icon: const Icon(Icons.edit, size: 22),
+                                      tooltip: 'Modifier l\'événement',
+                                      color: Colors.blue[700],
+                                      padding: const EdgeInsets.all(8),
+                                      constraints: const BoxConstraints(),
                                     ),
-                                    TextButton.icon(
+                                    const SizedBox(width: 4),
+                                    IconButton(
                                       onPressed: () => _deleteEvent(event),
-                                      icon: const Icon(Icons.delete, size: 18),
-                                      label: const Text('Supprimer'),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: Colors.red[700],
-                                      ),
+                                      icon: const Icon(Icons.delete, size: 22),
+                                      tooltip: 'Supprimer l\'événement',
+                                      color: Colors.red[700],
+                                      padding: const EdgeInsets.all(8),
+                                      constraints: const BoxConstraints(),
                                     ),
                                   ],
                                 ),
