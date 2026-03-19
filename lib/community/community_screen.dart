@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/forum_model.dart';
 import '../services/forum_service.dart';
+import '../services/auth_service.dart';
 import 'create_forum_screen.dart';
 import 'forum_detail_screen.dart';
+import 'member_events_screen.dart';
 
 class CommunityScreen extends StatefulWidget {
   const CommunityScreen({super.key});
@@ -55,24 +57,131 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _forums.isEmpty
-              ? _buildEmptyState()
-              : RefreshIndicator(
-                  onRefresh: _loadForums,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _forums.length,
-                    itemBuilder: (context, index) {
-                      return _buildForumCard(_forums[index]);
-                    },
+      body: Column(
+        children: [
+          // Bouton d'accès aux événements
+          Container(
+            margin: const EdgeInsets.all(16),
+            child: Card(
+              elevation: 3,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: InkWell(
+                onTap: _openEvents,
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.teal[50],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.event,
+                          color: Colors.teal[700],
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Événements de vos salles',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.teal[700],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Participez aux challenges et animations',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        color: Colors.grey[400],
+                        size: 20,
+                      ),
+                    ],
                   ),
                 ),
+              ),
+            ),
+          ),
+          // Liste des forums
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.forum, color: Colors.blue[700], size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Forums de discussion',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _forums.isEmpty
+                    ? _buildEmptyState()
+                    : RefreshIndicator(
+                        onRefresh: _loadForums,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _forums.length,
+                          itemBuilder: (context, index) {
+                            return _buildForumCard(_forums[index]);
+                          },
+                        ),
+                      ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createForum,
         icon: const Icon(Icons.add),
         label: const Text('Créer un forum'),
+      ),
+    );
+  }
+
+  void _openEvents() {
+    final currentUser = AuthService().currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Vous devez être connecté pour voir les événements'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MemberEventsScreen(userId: currentUser.id),
       ),
     );
   }

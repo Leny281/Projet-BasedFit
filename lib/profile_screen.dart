@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'services/auth_service.dart';
 import 'models/user_model.dart';
+import 'data/app_database.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -71,6 +72,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           // Informations personnelles
           _buildPersonalInfo(),
+          const SizedBox(height: 24),
+
+          // Salles de sport favorites
+          _GymFavoritesSection(userId: _user!.id),
           const SizedBox(height: 24),
 
           // Badges et réalisations
@@ -242,7 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildPersonalInfo() {
     final bmi = _user!.weight / ((_user!.height / 100) * (_user!.height / 100));
-    
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -479,6 +484,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             titleColor: Colors.red,
             onTap: _logout,
           ),
+          const Divider(height: 1),
+          // ── Suppression de compte ─────────────────────────────────
+          _buildSettingTile(
+            icon: Icons.delete_forever,
+            title: 'Supprimer mon compte',
+            subtitle: 'Cette action est irréversible',
+            titleColor: Colors.red[800],
+            onTap: _deleteAccount,
+          ),
         ],
       ),
     );
@@ -514,7 +528,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _editProfile() {
-    // Note: Nom et prénom ne peuvent pas être modifiés
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -691,6 +704,349 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Déconnexion'),
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Suppression de compte ────────────────────────────────────────────────
+
+  void _deleteAccount() {
+    final passwordController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red[700]),
+            const SizedBox(width: 8),
+            const Text('Supprimer mon compte'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Cette action est définitive et irréversible.\n\n'
+              'Toutes vos données (programmes, stats, favoris) seront supprimées.',
+              style: TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirmez votre mot de passe',
+                prefixIcon: Icon(Icons.lock_outline),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final password = passwordController.text.trim();
+              if (password.isEmpty) return;
+
+              // Vérifier le mot de passe
+              final db = await AppDatabase.instance.database;
+              final hashed = AppDatabase.hashPassword(password);
+              final result = await db.query(
+                'users',
+                where: 'id = ? AND password = ?',
+                whereArgs: [_user!.id, hashed],
+                limit: 1,
+              );
+
+              if (result.isEmpty) {
+                if (mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Mot de passe incorrect.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+                return;
+              }
+
+              // Supprimer l'utilisateur (CASCADE supprime ses favoris, stats, etc.)
+              await db.delete('users', where: 'id = ?', whereArgs: [_user!.id]);
+              await _authService.logout();
+
+              if (mounted) {
+                Navigator.pop(context);
+                Navigator.of(context).pushNamedAndRemoveUntil(
+                  '/auth',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[800]),
+            child: const Text('Supprimer définitivement'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SECTION SALLES FAVORITES (max 3)
+// ════════════════════════════════════════════════════════════════════
+
+class _GymFavoritesSection extends StatefulWidget {
+  final int userId;
+  const _GymFavoritesSection({required this.userId});
+
+  @override
+  State<_GymFavoritesSection> createState() => _GymFavoritesSectionState();
+}
+
+class _GymFavoritesSectionState extends State<_GymFavoritesSection> {
+  List<Map<String, dynamic>> _favorites = [];
+  List<Map<String, dynamic>> _allGyms = [];
+  bool _loading = true;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final db = await AppDatabase.instance.database;
+
+    final favs = await db.rawQuery('''
+      SELECT g.id, g.name
+      FROM gyms g
+      INNER JOIN user_gym_favorites f ON f.gym_id = g.id
+      WHERE f.user_id = ?
+      ORDER BY f.created_at ASC
+    ''', [widget.userId]);
+
+    final all = await db.query('gyms', columns: ['id', 'name'], orderBy: 'name ASC');
+
+    setState(() {
+      _favorites = favs;
+      _allGyms = all;
+      _loading = false;
+    });
+  }
+
+  Future<void> _addFavorite(int gymId) async {
+    if (_favorites.length >= 3) return;
+    final db = await AppDatabase.instance.database;
+    await db.insert('user_gym_favorites', {
+      'user_id': widget.userId,
+      'gym_id': gymId,
+      'created_at': DateTime.now().toIso8601String(),
+    });
+    await _load();
+  }
+
+  Future<void> _removeFavorite(int gymId) async {
+    final db = await AppDatabase.instance.database;
+    await db.delete(
+      'user_gym_favorites',
+      where: 'user_id = ? AND gym_id = ?',
+      whereArgs: [widget.userId, gymId],
+    );
+    await _load();
+  }
+
+  void _showAddDialog() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          final favoriteIds = _favorites.map((f) => f['id'] as int).toSet();
+          final filtered = _allGyms
+              .where((g) =>
+                  !favoriteIds.contains(g['id'] as int) &&
+                  (g['name'] as String)
+                      .toLowerCase()
+                      .contains(_searchQuery.toLowerCase()))
+              .toList();
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 20,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Choisir une salle',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Rechercher une salle...',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setModalState(() => _searchQuery = '');
+                              setState(() => _searchQuery = '');
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
+                  ),
+                  onChanged: (v) {
+                    setModalState(() => _searchQuery = v);
+                    setState(() => _searchQuery = v);
+                  },
+                ),
+                const SizedBox(height: 8),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text(
+                        _searchQuery.isEmpty
+                            ? 'Il n\'existe aucune salle pour l\'instant.'
+                            : 'Aucune salle trouvée pour "$_searchQuery".',
+                        style: TextStyle(color: Colors.grey[500]),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                else
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, i) {
+                        final gym = filtered[i];
+                        return ListTile(
+                          leading: Icon(Icons.fitness_center,
+                              color: Colors.blue[700]),
+                          title: Text(gym['name'] as String),
+                          trailing: const Icon(Icons.add_circle_outline,
+                              color: Colors.blue),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                            _addFavorite(gym['id'] as int);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Mes salles favorites',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('${_favorites.length}/3',
+                    style: TextStyle(color: Colors.grey[500], fontSize: 13)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text("Ajoutez jusqu'à 3 salles de sport",
+                style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            const SizedBox(height: 16),
+
+            if (_favorites.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text("Aucune salle ajoutée pour l'instant.",
+                    style: TextStyle(color: Colors.grey[400], fontSize: 14)),
+              )
+            else
+              ..._favorites.map((gym) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.blue[100]!),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.fitness_center,
+                            color: Colors.blue[700], size: 20),
+                        title: Text(gym['name'] as String,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w600)),
+                        trailing: IconButton(
+                          icon: Icon(Icons.remove_circle_outline,
+                              color: Colors.red[400]),
+                          onPressed: () => _removeFavorite(gym['id'] as int),
+                          tooltip: 'Retirer',
+                        ),
+                      ),
+                    ),
+                  )),
+
+            if (_favorites.length < 3) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _showAddDialog,
+                  icon: const Icon(Icons.search),
+                  label: const Text('Rechercher une salle'),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

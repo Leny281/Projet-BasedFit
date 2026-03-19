@@ -7,14 +7,21 @@ import 'programme_creation/create_workout_screen.dart';
 import 'services/auth_service.dart';
 import 'dart:io';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'data/app_database.dart';
 
 void main() async {
+  
   WidgetsFlutterBinding.ensureInitialized();
 
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+
+
+ //A DE COMMANTER SI PROBLEME DE BASE DE DONNEES, CA VA TOUT SUPPRIMER ET TOUT RECREER
+ // await AppDatabase.instance.resetDatabase();
+
 
   // Initialiser le service d'authentification
   await AuthService().init();
