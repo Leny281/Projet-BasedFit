@@ -15,7 +15,9 @@ import 'community/community_screen.dart';
 import 'models/user_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onToggleTheme;
+  final bool darkMode;
+  const HomeScreen({super.key, this.onToggleTheme, this.darkMode = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -24,12 +26,12 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
 
-  final List<Widget> _tabs = const [
-    _MenuTab(),
-    TrainingTab(),
-    _NutritionTab(),
-    CommunityScreen(),
-    ProfileScreen(),
+  List<Widget> get _tabs => [
+    const _MenuTab(),
+    const TrainingTab(),
+    const _NutritionTab(),
+    const CommunityScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -37,7 +39,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('BasedFit'),
-        backgroundColor: Theme.of(context).primaryColor,
+        actions: [
+          IconButton(
+            icon: Icon(widget.darkMode ? Icons.light_mode : Icons.dark_mode),
+            tooltip: widget.darkMode ? 'Mode clair' : 'Mode sombre',
+            onPressed: widget.onToggleTheme,
+          ),
+        ],
       ),
       body: _tabs[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(

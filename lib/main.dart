@@ -8,6 +8,8 @@ import 'services/auth_service.dart';
 import 'dart:io';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'data/app_database.dart';
+import 'theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   
@@ -34,21 +36,51 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  bool _darkMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _darkMode = prefs.getBool('darkMode') ?? false;
+    });
+  }
+
+  Future<void> _toggleTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _darkMode = !_darkMode;
+    });
+    await prefs.setBool('darkMode', _darkMode);
+  }
 
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-
     return MaterialApp(
       useInheritedMediaQuery: true,
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
       title: 'BasedFit',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      // Afficher AuthScreen si non connecté, sinon HomeScreen
-      home: authService.isLoggedIn ? const HomeScreen() : const AuthScreen(),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _darkMode ? ThemeMode.dark : ThemeMode.light,
+      home: authService.isLoggedIn
+          ? HomeScreen(onToggleTheme: _toggleTheme, darkMode: _darkMode)
+          : AuthScreen(onToggleTheme: _toggleTheme, darkMode: _darkMode),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,

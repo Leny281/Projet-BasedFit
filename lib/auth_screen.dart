@@ -6,7 +6,9 @@ import 'home_screen.dart';
 import 'manager_home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+  final VoidCallback? onToggleTheme;
+  final bool darkMode;
+  const AuthScreen({super.key, this.onToggleTheme, this.darkMode = false});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -72,6 +74,17 @@ class _AuthScreenState extends State<AuthScreen>
 Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(widget.darkMode ? Icons.light_mode : Icons.dark_mode),
+            tooltip: widget.darkMode ? 'Mode clair' : 'Mode sombre',
+            onPressed: widget.onToggleTheme,
+          ),
+        ],
+      ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -88,6 +101,7 @@ Widget build(BuildContext context) {
                 constraints: const BoxConstraints(maxWidth: 450),
                 child: Card(
                   elevation: 8,
+                  color: Theme.of(context).cardColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
@@ -111,7 +125,7 @@ Widget build(BuildContext context) {
 
                          Container(
                           decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: Theme.of(context).colorScheme.surface,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: TabBar(
